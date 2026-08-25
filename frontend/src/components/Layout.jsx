@@ -37,7 +37,7 @@ export default function Layout({ children }) {
   return (
     <div className="flex h-screen bg-[#F3F4F6]">
       {/* Sidebar — fixed 240px dark shell, flat nav, no nested items */}
-      <aside className="w-[240px] shrink-0 bg-[#0F172A] flex flex-col">
+      <aside className="w-[240px] shrink-0 bg-[#0A1F44] flex flex-col">
         <div className="h-16 flex items-center gap-2 px-5 border-b border-white/10">
           <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
             <i className="bi bi-lightning-charge-fill text-white text-sm" />
@@ -60,8 +60,8 @@ export default function Layout({ children }) {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-[#1E293B] text-white'
-                    : 'text-slate-400 hover:bg-[#1E293B]/60 hover:text-slate-100'
+                    ? 'bg-[#15325E] text-white'
+                    : 'text-slate-400 hover:bg-[#15325E]/60 hover:text-slate-100'
                 }`
               }
             >
@@ -85,7 +85,7 @@ export default function Layout({ children }) {
       {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header — sticky 64px dark bar: page title, org pill, notifications, avatar */}
-        <header className="h-16 shrink-0 sticky top-0 z-10 bg-[#0F172A] border-b border-white/10 flex items-center justify-between px-6">
+        <header className="h-16 shrink-0 sticky top-0 z-10 bg-[#0A1F44] border-b border-white/10 flex items-center justify-between px-6">
           <h1 className="text-white text-[15px] font-semibold">
             {currentTitle(location.pathname)}
           </h1>
