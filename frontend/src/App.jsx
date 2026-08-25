@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './lib/store'
 import Layout from './components/Layout'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Members from './pages/Members'
@@ -16,17 +17,23 @@ function ProtectedRoute({ children }) {
   return token ? children : <Navigate to="/login" />
 }
 
+function PublicOnlyRoute({ children }) {
+  const token = useAuthStore((s) => s.token)
+  return token ? <Navigate to="/dashboard" /> : children
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<PublicOnlyRoute><Landing /></PublicOnlyRoute>} />
+      <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
       <Route
         path="/*"
         element={
           <ProtectedRoute>
             <Layout>
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/members" element={<Members />} />
                 <Route path="/coaches" element={<Coaches />} />
                 <Route path="/plans" element={<Plans />} />
@@ -34,6 +41,7 @@ export default function App() {
                 <Route path="/payments" element={<Payments />} />
                 <Route path="/check-ins" element={<CheckIns />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
