@@ -53,3 +53,58 @@ curl -X POST http://localhost:8000/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@gym.com","password":"admin123","member_id":"<uuid>"}'
 ```
+
+## Deployment
+
+### Backend (Render)
+
+1. Push this repo to GitHub
+2. Go to [render.com](https://render.com) → New → Web Service
+3. Connect your GitHub repo
+4. Render will auto-detect `render.yaml` and configure:
+   - **Build**: `pip install -r requirements.txt`
+   - **Start**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Set environment variables in Render dashboard:
+   - `DATABASE_URL` — your Supabase connection string
+   - `CORS_ORIGINS` — `https://your-app.vercel.app`
+   - `SECRET_KEY` — any random string
+6. Run `alembic upgrade head` in Render's shell tab to create tables
+7. Your backend URL will be like `https://gym-management-api.onrender.com`
+
+### Frontend (Vercel)
+
+1. Go to [vercel.com](https://vercel.com) → New Project
+2. Import your GitHub repo
+3. Vercel auto-detects `vercel.json` config
+4. **Important**: After deploying the backend, update the URL in `vercel.json`:
+   ```json
+   { "source": "/api/(.*)", "destination": "https://YOUR-RENDER-URL.onrender.com/$1" }
+   ```
+5. Deploy — your frontend will be at `https://your-app.vercel.app`
+
+### Create Login Accounts
+
+After both are deployed, run this SQL in **Supabase SQL Editor**:
+
+```sql
+INSERT INTO organizations (id, name)
+VALUES ('11111111-1111-1111-1111-111111111111', 'Demo Gym')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO gym_members (id, organization_id, member_code, full_name, email, mobile_phone, status, created_at, updated_at)
+VALUES ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'AG-10000', 'Demo Member', 'member@gym.com', '+63 912 345 6789', 'active', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO gym_users (id, organization_id, email, hashed_password, role, member_id, created_at, updated_at)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'admin@gym.com', '$2b$12$LJ3m4ris8HKEHKNYKMC2p.pSZxq2cQpZGSiMvGlIHP9MiIYlVJICO', 'admin', NULL, NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO gym_users (id, organization_id, email, hashed_password, role, member_id, created_at, updated_at)
+VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'member@gym.com', '$2b$12$LJ3m4ris8HKEHKNYKMC2p.pSZxq2cQpZGSiMvGlIHP9MiIYlVJICO', 'member', '22222222-2222-2222-2222-222222222222', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+```
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@gym.com` | `admin123` |
+| Member | `member@gym.com` | `member123` |

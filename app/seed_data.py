@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, date, timezone
 
 from faker import Faker
 from app.database import SessionLocal
-from app.models import GymMember, GymCoach, GymMembershipPlan, GymMembership, GymPayment, Organization
+from app.models import GymMember, GymCoach, GymMembershipPlan, GymMembership, GymPayment, Organization, GymUser
+from app.auth import hash_password
 
 fake = Faker()
 ORG_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -99,6 +100,32 @@ for gm, plan in memberships:
     payment_count += 1
 db.commit()
 print(f"Created {payment_count} payments")
+
+admin_user = GymUser(
+    id=uuid.uuid4(),
+    organization_id=ORG_ID,
+    email="admin@gym.com",
+    hashed_password=hash_password("admin123"),
+    role="admin",
+    member_id=None,
+    created_at=datetime.now(timezone.utc),
+    updated_at=datetime.now(timezone.utc),
+)
+db.add(admin_user)
+
+member_user = GymUser(
+    id=uuid.uuid4(),
+    organization_id=ORG_ID,
+    email="member@gym.com",
+    hashed_password=hash_password("member123"),
+    role="member",
+    member_id=members[0].id,
+    created_at=datetime.now(timezone.utc),
+    updated_at=datetime.now(timezone.utc),
+)
+db.add(member_user)
+db.commit()
+print("Created admin and member login accounts")
 
 db.close()
 print("Seeding complete!")
