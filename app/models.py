@@ -188,3 +188,35 @@ class GymRenewalRequest(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+
+class CoachSchedule(Base):
+    __tablename__ = "coach_schedules"
+    __table_args__ = (
+        UniqueConstraint("coach_id", "day_of_week", "shift_type", name="uq_coach_schedule_day_shift"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    coach_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coaches.id"), nullable=False, index=True)
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)
+    shift_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class MemberBooking(Base):
+    __tablename__ = "member_bookings"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    coach_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coaches.id"), nullable=False, index=True)
+    member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=False, index=True)
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    shift_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    start_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    weeks: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

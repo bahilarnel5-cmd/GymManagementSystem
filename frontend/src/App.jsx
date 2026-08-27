@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './lib/store'
 import Layout from './components/Layout'
+import MemberLayout from './components/MemberLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -10,6 +11,10 @@ import Plans from './pages/Plans'
 import Memberships from './pages/Memberships'
 import Payments from './pages/Payments'
 import Settings from './pages/Settings'
+import CoachSchedules from './pages/CoachSchedules'
+import MemberDashboard from './pages/MemberDashboard'
+import MemberCoaches from './pages/MemberCoaches'
+import MemberRenewals from './pages/MemberRenewals'
 
 function ProtectedRoute({ children }) {
   const token = useAuthStore((s) => s.token)
@@ -21,7 +26,40 @@ function PublicOnlyRoute({ children }) {
   return token ? <Navigate to="/dashboard" /> : children
 }
 
+function AdminRoutes() {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/members" element={<Members />} />
+        <Route path="/coaches" element={<Coaches />} />
+        <Route path="/coach-schedules" element={<CoachSchedules />} />
+        <Route path="/plans" element={<Plans />} />
+        <Route path="/memberships" element={<Memberships />} />
+        <Route path="/payments" element={<Payments />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </Layout>
+  )
+}
+
+function MemberRoutes() {
+  return (
+    <MemberLayout>
+      <Routes>
+        <Route path="/member/dashboard" element={<MemberDashboard />} />
+        <Route path="/member/coaches" element={<MemberCoaches />} />
+        <Route path="/member/renewals" element={<MemberRenewals />} />
+        <Route path="*" element={<Navigate to="/member/dashboard" />} />
+      </Routes>
+    </MemberLayout>
+  )
+}
+
 export default function App() {
+  const role = useAuthStore((s) => s.role)
+
   return (
     <Routes>
       <Route path="/" element={<PublicOnlyRoute><Landing /></PublicOnlyRoute>} />
@@ -30,18 +68,7 @@ export default function App() {
         path="/*"
         element={
           <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/members" element={<Members />} />
-                <Route path="/coaches" element={<Coaches />} />
-                <Route path="/plans" element={<Plans />} />
-                <Route path="/memberships" element={<Memberships />} />
-                <Route path="/payments" element={<Payments />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/dashboard" />} />
-              </Routes>
-            </Layout>
+            {role === 'admin' ? <AdminRoutes /> : <MemberRoutes />}
           </ProtectedRoute>
         }
       />

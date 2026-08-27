@@ -18,7 +18,7 @@ export default function Login() {
     setLoading(true)
     try {
       const { data } = await api.post('/auth/login', { email, password })
-      login(data.access_token, data.role)
+      login(data.access_token, data.role, null, data.member_id)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date, timezone
 
 from faker import Faker
 from app.database import SessionLocal
-from app.models import GymMember, GymCoach, GymMembershipPlan, GymMembership, GymPayment, Organization, GymUser
+from app.models import GymMember, GymCoach, GymMembershipPlan, GymMembership, GymPayment, Organization, GymUser, CoachSchedule
 from app.auth import hash_password
 
 fake = Faker()
@@ -126,6 +126,20 @@ member_user = GymUser(
 db.add(member_user)
 db.commit()
 print("Created admin and member login accounts")
+
+coach_schedules = []
+for c in coaches[:5]:
+    for day in range(6):
+        shift = random.choice(["morning", "evening"])
+        cs = CoachSchedule(
+            id=uuid.uuid4(), organization_id=ORG_ID, coach_id=c.id,
+            day_of_week=day, shift_type=shift, is_active=True,
+            created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+        )
+        db.add(cs)
+        coach_schedules.append(cs)
+db.commit()
+print(f"Created {len(coach_schedules)} coach schedules")
 
 db.close()
 print("Seeding complete!")

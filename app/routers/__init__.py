@@ -9,6 +9,8 @@ from .settings import router as settings_router
 from .renewals import router as renewals_router
 from .dashboard import router as dashboard_router
 from .auth import router as auth_router
+from .coach_schedules import router as coach_schedules_router
+from .member_portal import router as member_portal_router
 
 all_routers = [
     auth_router,
@@ -22,4 +24,6 @@ all_routers = [
     checkins_router,
     settings_router,
     renewals_router,
+    coach_schedules_router,
+    member_portal_router,
 ]

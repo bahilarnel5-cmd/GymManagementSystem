@@ -57,7 +57,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         "organization_id": str(user.organization_id),
         "member_id": str(user.member_id) if user.member_id else None,
     })
-    return TokenResponse(access_token=token, role=user.role)
+    return TokenResponse(access_token=token, role=user.role, member_id=str(user.member_id) if user.member_id else None)
 
 
 @router.get("/me")

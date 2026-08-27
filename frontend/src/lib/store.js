@@ -4,19 +4,22 @@ export const useAuthStore = create((set) => ({
   token: localStorage.getItem('token') || null,
   role: localStorage.getItem('role') || null,
   orgId: localStorage.getItem('orgId') || null,
+  memberId: localStorage.getItem('memberId') || null,
 
-  login: (token, role, orgId) => {
+  login: (token, role, orgId, memberId) => {
     localStorage.setItem('token', token)
     localStorage.setItem('role', role)
     if (orgId) localStorage.setItem('orgId', orgId)
-    set({ token, role, orgId })
+    if (memberId) localStorage.setItem('memberId', memberId)
+    set({ token, role, orgId, memberId })
   },
 
   logout: () => {
     localStorage.removeItem('token')
     localStorage.removeItem('role')
     localStorage.removeItem('orgId')
-    set({ token: null, role: null, orgId: null })
+    localStorage.removeItem('memberId')
+    set({ token: null, role: null, orgId: null, memberId: null })
   },
 
   isAuthenticated: () => !!localStorage.getItem('token'),

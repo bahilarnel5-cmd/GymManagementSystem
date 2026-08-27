@@ -21,6 +21,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str
+    member_id: Optional[str] = None
 
 
 # ---- Members ----
@@ -332,3 +333,71 @@ class PaginatedResponse(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+# ---- Coach Schedules ----
+
+class CoachScheduleCreate(BaseModel):
+    organization_id: uuid.UUID
+    coach_id: uuid.UUID
+    day_of_week: int
+    shift_type: str
+    is_active: bool = True
+
+
+class CoachScheduleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    coach_id: uuid.UUID
+    day_of_week: int
+    shift_type: str
+    is_active: bool
+
+
+# ---- Member Bookings ----
+
+class MemberBookingCreate(BaseModel):
+    organization_id: uuid.UUID
+    coach_id: uuid.UUID
+    member_id: uuid.UUID
+    day_of_week: int
+    start_hour: int
+    end_hour: int
+    shift_type: str
+    start_date: date
+    weeks: int = 1
+
+
+class MemberBookingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    coach_name: str
+    coach_specialization: str
+    day_of_week: int
+    start_hour: int
+    end_hour: int
+    shift_type: str
+    start_date: date
+    weeks: int
+    status: str
+    created_at: datetime
+
+
+# ---- Member Portal ----
+
+class MemberDashboardResponse(BaseModel):
+    member: dict
+    membership: Optional[dict]
+    recent_payments: list
+    recent_bookings: list
+    stats: dict
+
+
+class CoachSlotResponse(BaseModel):
+    day_of_week: int
+    date: str
+    shift_type: str
+    start_hour: int
+    end_hour: int
+    available: bool
+    booked_by_me: bool

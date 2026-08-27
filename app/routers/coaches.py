@@ -17,7 +17,7 @@ def list_coaches(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     search: str = Query("", max_length=100),
-    payload: dict = Depends(require_role("admin")),
+    payload: dict = Depends(require_role("admin", "member")),
     db: Session = Depends(get_db),
 ):
     query = db.query(GymCoach)
