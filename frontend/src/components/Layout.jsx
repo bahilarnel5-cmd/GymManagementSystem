@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../lib/store'
 import { useState } from 'react'
 
@@ -12,10 +12,21 @@ const navItems = [
   { to: '/settings', icon: 'bi-gear', label: 'Settings' },
 ]
 
+const iconColors = {
+  '/dashboard': 'from-blue-400 to-blue-600',
+  '/members': 'from-emerald-400 to-emerald-600',
+  '/coaches': 'from-violet-400 to-violet-600',
+  '/plans': 'from-amber-400 to-amber-600',
+  '/memberships': 'from-pink-400 to-pink-600',
+  '/payments': 'from-cyan-400 to-cyan-600',
+  '/settings': 'from-slate-400 to-slate-600',
+}
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const logout = useAuthStore((s) => s.logout)
   const role = useAuthStore((s) => s.role)
+  const location = useLocation()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -29,44 +40,81 @@ export default function Layout({ children }) {
         <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col bg-[#0A1F44] text-white transition-transform duration-200 w-60 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-              <i className="bi bi-lightning-charge-fill text-white text-sm" />
-            </div>
-            <span className="text-sm font-semibold truncate">GymManager</span>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col text-white transition-transform duration-300 w-64 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+        style={{ background: 'linear-gradient(180deg, #0c1929 0%, #132743 40%, #1a3358 100%)' }}
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center gap-3 px-5 border-b border-white/[0.06]">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <i className="bi bi-lightning-charge-fill text-white text-sm" />
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-white lg:hidden">
+          <div>
+            <span className="text-sm font-bold tracking-tight">GymManager</span>
+            <p className="text-[10px] text-slate-400 -mt-0.5">Management System</p>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="ml-auto text-slate-400 hover:text-white lg:hidden">
             <i className="bi bi-x-lg" />
           </button>
         </div>
 
-        <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`
-              }
-            >
-              <i className={`bi ${item.icon} text-base`} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+        {/* Section label */}
+        <div className="px-5 pt-5 pb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main Menu</p>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.to
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/[0.08] text-white shadow-sm'
+                    : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
+                }`}
+              >
+                {isActive && (
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b ${iconColors[item.to]}`} />
+                )}
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  isActive
+                    ? `bg-gradient-to-br ${iconColors[item.to]} shadow-md`
+                    : 'bg-white/[0.05]'
+                }`}>
+                  <i className={`bi ${item.icon} text-sm ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                </div>
+                <span>{item.label}</span>
+              </NavLink>
+            )
+          })}
         </nav>
 
-        <div className="p-2 border-t border-white/10">
-          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
-            <i className="bi bi-box-arrow-left text-base" />
+        {/* User / Logout */}
+        <div className="p-3 border-t border-white/[0.06]">
+          <div className="flex items-center gap-3 px-3 py-2.5 mb-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+              <i className="bi bi-person-fill text-xs text-slate-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-200 truncate capitalize">{role}</p>
+              <p className="text-[10px] text-slate-500">Gym Administrator</p>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200 transition-colors">
+            <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center">
+              <i className="bi bi-box-arrow-left text-sm" />
+            </div>
             <span>Log out</span>
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 lg:ml-60">
+      {/* Main content */}
+      <div className="flex-1 lg:ml-64">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="text-gray-600 hover:text-gray-900 lg:hidden p-1">
             <i className="bi bi-list text-2xl" />
