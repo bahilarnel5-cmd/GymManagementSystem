@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 
+const coachColors = [
+  { bg: 'bg-violet-500', ring: 'ring-violet-200' },
+  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
+  { bg: 'bg-emerald-500', ring: 'ring-emerald-200' },
+  { bg: 'bg-amber-500', ring: 'ring-amber-200' },
+  { bg: 'bg-rose-500', ring: 'ring-rose-200' },
+]
+
 export default function Coaches() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
@@ -17,83 +25,114 @@ export default function Coaches() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches'] }),
   })
 
+  const getInitials = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Coaches</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Coaches</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your coaching staff</p>
+        </div>
+        <div className="text-sm text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">
+          {data?.total ?? 0} total
+        </div>
       </div>
 
-      <div className="mb-4">
-        <input
-          placeholder="Search coaches by name, specialization, contact..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-          className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none"
-        />
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+          <input
+            placeholder="Search coaches..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none bg-white shadow-sm"
+          />
+        </div>
       </div>
 
-      <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium">Name</th>
-              <th className="text-left px-4 py-3 font-medium">Specialization</th>
-              <th className="text-left px-4 py-3 font-medium">Rate/hr</th>
-              <th className="text-left px-4 py-3 font-medium">Contact</th>
-              <th className="text-left px-4 py-3 font-medium">Shift</th>
-              <th className="text-right px-4 py-3 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>
-            ) : data?.items?.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-400">No coaches found</td></tr>
-            ) : (
-              data?.items?.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{c.full_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.specialization}</td>
-                  <td className="px-4 py-3 font-semibold text-gym-600">₱{c.hourly_rate.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.mobile_contact}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{c.shift_schedule || '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => deleteMutation.mutate(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="md:hidden space-y-3">
-        {isLoading ? (
-          <p className="text-center py-8 text-gray-400">Loading...</p>
-        ) : data?.items?.length === 0 ? (
-          <p className="text-center py-8 text-gray-400">No coaches found</p>
-        ) : (
-          data?.items?.map((c) => (
-            <div key={c.id} className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-gray-800">{c.full_name}</p>
-                  <p className="text-xs text-gray-500">{c.specialization}</p>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gym-600" />
+        </div>
+      ) : data?.items?.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl shadow-sm">
+          <i className="bi bi-person-badge text-4xl text-gray-300 mb-3 block" />
+          <p className="text-gray-400">No coaches found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {data?.items?.map((c, idx) => {
+            const color = coachColors[idx % coachColors.length]
+            return (
+              <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+                {/* Header */}
+                <div className={`${color.bg} p-5 pb-8 relative`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
+                      {getInitials(c.full_name)}
+                    </div>
+                    <div className="text-white">
+                      <h3 className="font-bold text-sm">{c.full_name}</h3>
+                      <p className="text-white/70 text-xs">{c.specialization}</p>
+                    </div>
+                  </div>
                 </div>
-                <p className="font-semibold text-gym-600">₱{c.hourly_rate.toLocaleString()}/hr</p>
+
+                {/* Body */}
+                <div className="relative px-5 pb-5 -mt-3">
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-gym-50 flex items-center justify-center">
+                        <i className="bi bi-cash-stack text-gym-600 text-xs" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
+                        <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/hr</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <i className="bi bi-telephone text-blue-600 text-xs" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Contact</p>
+                        <p className="text-sm font-medium text-gray-700">{c.mobile_contact}</p>
+                      </div>
+                    </div>
+
+                    {c.shift_schedule && (
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                          <i className="bi bi-clock text-amber-600 text-xs" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Schedule</p>
+                          <p className="text-sm font-medium text-gray-700">{c.shift_schedule}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 pb-4">
+                  <button
+                    onClick={() => { if (confirm(`Delete ${c.full_name}?`)) deleteMutation.mutate(c.id) }}
+                    className="w-full py-2 rounded-xl text-xs font-medium text-red-500 hover:bg-red-50 border border-red-100 transition-colors"
+                  >
+                    Remove Coach
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 text-sm text-gray-600">
-                <p>{c.mobile_contact}</p>
-                <p className="text-xs">{c.shift_schedule || '—'}</p>
-              </div>
-              <button onClick={() => deleteMutation.mutate(c.id)} className="mt-3 text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
-            </div>
-          ))
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {data && data.pages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white rounded-xl shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3 mt-6 bg-white rounded-xl shadow-sm">
           <span className="text-sm text-gray-500">Page {data.page} of {data.pages}</span>
           <div className="flex gap-2">
             <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
