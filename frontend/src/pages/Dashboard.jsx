@@ -1,6 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, CornerLeftDown, CornerRightUp, LineChart } from 'lucide-react'
+
+const SUMMARY_CARDS = [
+  { icon: Wallet, iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', amount: '₱1,357,500.00', label: 'Cash Available', sublabel: 'All accounts' },
+  { icon: ArrowDownToLine, iconBg: 'bg-sky-100', iconColor: 'text-sky-600', amount: '₱175,300.00', label: 'Cash In (MTD)', sublabel: 'Received this month' },
+  { icon: ArrowUpFromLine, iconBg: 'bg-rose-100', iconColor: 'text-rose-500', amount: '₱338,500.00', label: 'Cash Out (MTD)', sublabel: 'Paid this month' },
+  { icon: CornerLeftDown, iconBg: 'bg-indigo-100', iconColor: 'text-indigo-500', amount: '₱491,000.00', label: 'Total Receivables', sublabel: 'Open, from Invoicing' },
+  { icon: CornerRightUp, iconBg: 'bg-amber-100', iconColor: 'text-amber-500', amount: '₱133,500.00', label: 'Total Payables', sublabel: 'Open, from Payables' },
+  { icon: LineChart, iconBg: 'bg-violet-100', iconColor: 'text-violet-500', amount: '₱1,715,000.00', label: 'Net Position', sublabel: 'Cash + Recv − Pay' },
+]
 
 function StatCard({ label, value, icon, color }) {
   return (
@@ -45,39 +55,21 @@ export default function Dashboard() {
         <StatCard label="Total Revenue" value={`₱${(stats?.total_revenue ?? 0).toLocaleString()}`} icon="💰" color="bg-amber-50" />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+      <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Financial Summary</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <p className="text-2xl font-bold text-green-600">₱1,357,500.00</p>
-            <p className="text-xs text-gray-500 mt-1">Cash Available</p>
-            <p className="text-[10px] text-gray-400">All accounts</p>
-          </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-2xl font-bold text-green-600">₱175,300.00</p>
-            <p className="text-xs text-gray-500 mt-1">Cash In (MTD)</p>
-            <p className="text-[10px] text-gray-400">Received this month</p>
-          </div>
-          <div className="text-center p-4 bg-red-50 rounded-lg">
-            <p className="text-2xl font-bold text-red-600">₱338,500.00</p>
-            <p className="text-xs text-gray-500 mt-1">Cash Out (MTD)</p>
-            <p className="text-[10px] text-gray-400">Paid this month</p>
-          </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-2xl font-bold text-blue-600">₱491,000.00</p>
-            <p className="text-xs text-gray-500 mt-1">Total Receivables</p>
-            <p className="text-[10px] text-gray-400">Open, from Invoicing</p>
-          </div>
-          <div className="text-center p-4 bg-amber-50 rounded-lg">
-            <p className="text-2xl font-bold text-amber-600">₱133,500.00</p>
-            <p className="text-xs text-gray-500 mt-1">Total Payables</p>
-            <p className="text-[10px] text-gray-400">Open, from Payables</p>
-          </div>
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-2xl font-bold text-purple-600">₱1,715,000.00</p>
-            <p className="text-xs text-gray-500 mt-1">Net Position</p>
-            <p className="text-[10px] text-gray-400">Cash + Recv − Pay</p>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {SUMMARY_CARDS.map(({ icon: Icon, iconBg, iconColor, amount, label, sublabel }) => (
+            <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconBg}`}>
+                <Icon className={`w-4 h-4 ${iconColor}`} strokeWidth={2.25} />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xl font-bold text-slate-900 tracking-tight">{amount}</span>
+                <span className="text-sm font-medium text-slate-700">{label}</span>
+                <span className="text-xs text-slate-400">{sublabel}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
