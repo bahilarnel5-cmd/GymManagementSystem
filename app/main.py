@@ -3,8 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.database import engine
+from app.database import engine, Base
 from app.routers import all_routers
+
+import app.models  # noqa: F401 — ensure all models are registered
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Gym Management API", version="2.0.0")
 
