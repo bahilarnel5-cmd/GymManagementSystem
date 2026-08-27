@@ -41,7 +41,6 @@ export default function MemberDashboard() {
   const membership = data?.membership
   const payments = data?.recent_payments || []
   const bookings = data?.recent_bookings || []
-  const stats = data?.stats || {}
 
   return (
     <div>
@@ -103,36 +102,6 @@ export default function MemberDashboard() {
           <p className="text-sm text-gray-400 mt-1">Visit the Renewals page to get started</p>
         </div>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center">
-            <i className="bi bi-calendar-check text-violet-600 text-lg" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-800">{stats.total_bookings}</p>
-            <p className="text-xs text-gray-500">Active Bookings</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-            <i className="bi bi-cash-stack text-emerald-600 text-lg" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-800">{stats.total_payments}</p>
-            <p className="text-xs text-gray-500">Total Payments</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-            <i className="bi bi-box-arrow-in-right text-blue-600 text-lg" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-800">{stats.checkins}</p>
-            <p className="text-xs text-gray-500">Total Check-ins</p>
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
