@@ -1,22 +1,12 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
-import { useAuthStore } from '../lib/store'
 
 export default function Plans() {
   const queryClient = useQueryClient()
-  const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', price: '', billing_cycle: 'monthly', features: '' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['plans'],
     queryFn: () => api.get('/gym_membership_plans/?per_page=50').then((r) => r.data),
-  })
-
-  const createMutation = useMutation({
-    mutationFn: (p) => api.post('/gym_membership_plans/', { ...p, organization_id: orgId, price: parseFloat(p.price) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['plans'] }); setShowForm(false); setForm({ name: '', price: '', billing_cycle: 'monthly', features: '' }) },
   })
 
   const deleteMutation = useMutation({
@@ -24,34 +14,11 @@ export default function Plans() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans'] }),
   })
 
-  const handleSubmit = (e) => { e.preventDefault(); createMutation.mutate(form) }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Membership Plans</h1>
-        <button onClick={() => setShowForm(!showForm)} className="bg-gym-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gym-700">
-          {showForm ? 'Cancel' : '+ Add Plan'}
-        </button>
       </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input placeholder="Plan Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Price" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <select value={form.billing_cycle} onChange={(e) => setForm({ ...form, billing_cycle: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="annually">Annually</option>
-          </select>
-          <input placeholder="Features (comma-separated)" value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
-          <div className="md:col-span-2">
-            <button type="submit" disabled={createMutation.isPending} className="bg-gym-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gym-700 disabled:opacity-50">
-              {createMutation.isPending ? 'Saving...' : 'Save Plan'}
-            </button>
-          </div>
-        </form>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {isLoading ? (

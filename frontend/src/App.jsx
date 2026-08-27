@@ -9,7 +9,6 @@ import Coaches from './pages/Coaches'
 import Plans from './pages/Plans'
 import Memberships from './pages/Memberships'
 import Payments from './pages/Payments'
-import CheckIns from './pages/CheckIns'
 import Settings from './pages/Settings'
 
 function ProtectedRoute({ children }) {
@@ -39,7 +38,6 @@ export default function App() {
                 <Route path="/plans" element={<Plans />} />
                 <Route path="/memberships" element={<Memberships />} />
                 <Route path="/payments" element={<Payments />} />
-                <Route path="/check-ins" element={<CheckIns />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>

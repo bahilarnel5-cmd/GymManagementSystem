@@ -1,29 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
-import { useAuthStore } from '../lib/store'
 
 export default function Members() {
   const queryClient = useQueryClient()
-  const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ member_code: '', full_name: '', email: '', mobile_phone: '', status: 'active' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['members', page, search],
-    queryFn: () =>
-      api.get(`/gym_members/?page=${page}&per_page=10&search=${search}`).then((r) => r.data),
-  })
-
-  const createMutation = useMutation({
-    mutationFn: (newMember) => api.post('/gym_members/', { ...newMember, organization_id: orgId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] })
-      setShowForm(false)
-      setForm({ member_code: '', full_name: '', email: '', mobile_phone: '', status: 'active' })
-    },
+    queryFn: () => api.get(`/gym_members/?page=${page}&per_page=10&search=${search}`).then((r) => r.data),
   })
 
   const deleteMutation = useMutation({
@@ -31,44 +17,21 @@ export default function Members() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
   })
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    createMutation.mutate(form)
-  }
-
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Members</h1>
-        <button onClick={() => setShowForm(!showForm)} className="bg-gym-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gym-700">
-          {showForm ? 'Cancel' : '+ Add Member'}
-        </button>
       </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input placeholder="Member Code" value={form.member_code} onChange={(e) => setForm({ ...form, member_code: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Full Name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
-          <input placeholder="Mobile Phone" value={form.mobile_phone} onChange={(e) => setForm({ ...form, mobile_phone: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <div className="md:col-span-2">
-            <button type="submit" disabled={createMutation.isPending} className="bg-gym-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gym-700 disabled:opacity-50">
-              {createMutation.isPending ? 'Saving...' : 'Save Member'}
-            </button>
-          </div>
-        </form>
-      )}
 
       <div className="mb-4">
         <input
-          placeholder="Search members..."
+          placeholder="Search members by name, code, email, phone..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none"
         />
       </div>
 
-      {/* Desktop table */}
       <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
@@ -108,7 +71,6 @@ export default function Members() {
         </table>
       </div>
 
-      {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
           <p className="text-center py-8 text-gray-400">Loading...</p>

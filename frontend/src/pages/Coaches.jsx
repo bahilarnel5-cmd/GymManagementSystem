@@ -1,24 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
-import { useAuthStore } from '../lib/store'
 
 export default function Coaches() {
   const queryClient = useQueryClient()
-  const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ full_name: '', specialization: '', hourly_rate: '', mobile_contact: '', shift_schedule: '' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['coaches', page, search],
     queryFn: () => api.get(`/gym_coaches/?page=${page}&per_page=10&search=${search}`).then((r) => r.data),
-  })
-
-  const createMutation = useMutation({
-    mutationFn: (c) => api.post('/gym_coaches/', { ...c, organization_id: orgId, hourly_rate: parseFloat(c.hourly_rate) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['coaches'] }); setShowForm(false); setForm({ full_name: '', specialization: '', hourly_rate: '', mobile_contact: '', shift_schedule: '' }) },
   })
 
   const deleteMutation = useMutation({
@@ -26,34 +17,19 @@ export default function Coaches() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches'] }),
   })
 
-  const handleSubmit = (e) => { e.preventDefault(); createMutation.mutate(form) }
-
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Coaches</h1>
-        <button onClick={() => setShowForm(!showForm)} className="bg-gym-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gym-700">
-          {showForm ? 'Cancel' : '+ Add Coach'}
-        </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input placeholder="Full Name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Specialization" value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Hourly Rate" type="number" value={form.hourly_rate} onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Mobile Contact" value={form.mobile_contact} onChange={(e) => setForm({ ...form, mobile_contact: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input placeholder="Shift Schedule" value={form.shift_schedule} onChange={(e) => setForm({ ...form, shift_schedule: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
-          <div className="md:col-span-2">
-            <button type="submit" disabled={createMutation.isPending} className="bg-gym-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gym-700 disabled:opacity-50">
-              {createMutation.isPending ? 'Saving...' : 'Save Coach'}
-            </button>
-          </div>
-        </form>
-      )}
-
       <div className="mb-4">
-        <input placeholder="Search coaches..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none" />
+        <input
+          placeholder="Search coaches by name, specialization, contact..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none"
+        />
       </div>
 
       <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">

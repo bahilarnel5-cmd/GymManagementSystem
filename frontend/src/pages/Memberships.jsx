@@ -1,38 +1,38 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
-import { useAuthStore } from '../lib/store'
 
 export default function Memberships() {
   const queryClient = useQueryClient()
-  const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ member_id: '', plan_id: '', payment_type: 'full', amount_due: '', amount_paid: '', start_date: '', end_date: '' })
+  const [emailModal, setEmailModal] = useState(false)
+  const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['memberships', page, search, statusFilter],
     queryFn: () => api.get(`/gym_memberships/?page=${page}&per_page=10&search=${search}&status=${statusFilter}`).then((r) => r.data),
   })
 
-  const { data: members } = useQuery({
-    queryKey: ['members-list'],
-    queryFn: () => api.get('/gym_members/?per_page=200').then((r) => r.data),
+  const emailMutation = useMutation({
+    mutationFn: (payload) => api.post('/gym_memberships/send-expiry-email', payload),
+    onSuccess: () => { setEmailModal(false); setEmailForm({ to: '', subject: '', body: '' }) },
   })
 
-  const { data: plans } = useQuery({
-    queryKey: ['plans-list'],
-    queryFn: () => api.get('/gym_membership_plans/?per_page=50').then((r) => r.data),
-  })
+  const handleSendEmail = (e) => {
+    e.preventDefault()
+    emailMutation.mutate(emailForm)
+  }
 
-  const createMutation = useMutation({
-    mutationFn: (m) => api.post('/gym_memberships/', { ...m, organization_id: orgId, amount_due: parseFloat(m.amount_due || 0), amount_paid: parseFloat(m.amount_paid || 0) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['memberships'] }); setShowForm(false); setForm({ member_id: '', plan_id: '', payment_type: 'full', amount_due: '', amount_paid: '', start_date: '', end_date: '' }) },
-  })
-
-  const handleSubmit = (e) => { e.preventDefault(); createMutation.mutate(form) }
+  const openEmail = (membership) => {
+    setEmailForm({
+      to: membership.member_email || '',
+      subject: `Your ${membership.plan_name} membership is expiring soon`,
+      body: `Dear ${membership.member_name},\n\nYour ${membership.plan_name} membership will expire on ${membership.end_date}. Please renew your plan to continue enjoying our services.\n\nThank you!`,
+    })
+    setEmailModal(true)
+  }
 
   const statusColor = (s) => {
     switch (s) {
@@ -45,37 +45,9 @@ export default function Memberships() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Memberships</h1>
-        <button onClick={() => setShowForm(!showForm)} className="bg-gym-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gym-700">
-          {showForm ? 'Cancel' : '+ Add Membership'}
-        </button>
       </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <select value={form.member_id} onChange={(e) => setForm({ ...form, member_id: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required>
-            <option value="">Select Member</option>
-            {members?.items?.map((m) => <option key={m.id} value={m.id}>{m.full_name} ({m.member_code})</option>)}
-          </select>
-          <select value={form.plan_id} onChange={(e) => setForm({ ...form, plan_id: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required>
-            <option value="">Select Plan</option>
-            {plans?.items?.map((p) => <option key={p.id} value={p.id}>{p.name} - ₱{p.price}</option>)}
-          </select>
-          <select value={form.payment_type} onChange={(e) => setForm({ ...form, payment_type: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
-            <option value="full">Full Payment</option>
-            <option value="partial">Partial Payment</option>
-          </select>
-          <input placeholder="Amount Due" type="number" value={form.amount_due} onChange={(e) => setForm({ ...form, amount_due: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
-          <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" required />
-          <div className="md:col-span-2">
-            <button type="submit" disabled={createMutation.isPending} className="bg-gym-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gym-700 disabled:opacity-50">
-              {createMutation.isPending ? 'Saving...' : 'Save Membership'}
-            </button>
-          </div>
-        </form>
-      )}
 
       <div className="flex flex-wrap gap-3 mb-4">
         <input placeholder="Search by member name..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="w-full sm:w-72 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none" />
@@ -97,13 +69,14 @@ export default function Memberships() {
               <th className="text-left px-4 py-3 font-medium">Payment</th>
               <th className="text-left px-4 py-3 font-medium">Start</th>
               <th className="text-left px-4 py-3 font-medium">End</th>
+              <th className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>
             ) : data?.items?.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-400">No memberships found</td></tr>
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">No memberships found</td></tr>
             ) : (
               data?.items?.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50">
@@ -121,6 +94,11 @@ export default function Memberships() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{m.start_date}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{m.end_date}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openEmail(m)} className="text-blue-500 hover:text-blue-700 text-xs font-medium">
+                      <i className="bi bi-envelope mr-1" />Email
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -148,6 +126,9 @@ export default function Memberships() {
                 <p className="text-gym-600">Paid: ₱{m.amount_paid.toLocaleString()}</p>
                 <p className="text-xs">{m.start_date} — {m.end_date}</p>
               </div>
+              <button onClick={() => openEmail(m)} className="mt-3 text-blue-500 hover:text-blue-700 text-xs font-medium">
+                <i className="bi bi-envelope mr-1" />Send Expiry Email
+              </button>
             </div>
           ))
         )}
@@ -159,6 +140,40 @@ export default function Memberships() {
           <div className="flex gap-2">
             <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
             <button onClick={() => setPage(Math.min(data.pages, page + 1))} disabled={page === data.pages} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+          </div>
+        </div>
+      )}
+
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Send Expiry Notification</h2>
+              <button onClick={() => setEmailModal(false)} className="text-gray-400 hover:text-gray-600">
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+            <form onSubmit={handleSendEmail} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">To</label>
+                <input type="email" value={emailForm.to} onChange={(e) => setEmailForm({ ...emailForm, to: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Subject</label>
+                <input value={emailForm.subject} onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Message</label>
+                <textarea value={emailForm.body} onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })} rows={5} className="w-full px-3 py-2 border rounded-lg text-sm" required />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={emailMutation.isPending} className="bg-gym-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gym-700 disabled:opacity-50">
+                  {emailMutation.isPending ? 'Sending...' : 'Send Email'}
+                </button>
+                <button type="button" onClick={() => setEmailModal(false)} className="px-4 py-2 border rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+              </div>
+              {emailMutation.isSuccess && <p className="text-sm text-green-600">Email sent successfully!</p>}
+            </form>
           </div>
         </div>
       )}
