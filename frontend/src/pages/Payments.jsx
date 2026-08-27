@@ -24,10 +24,10 @@ export default function Payments() {
       </div>
 
       <div className="mb-4">
-        <input placeholder="Search by name or receipt no..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none" />
+        <input placeholder="Search by name or receipt no..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none" />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
@@ -68,16 +68,47 @@ export default function Payments() {
             )}
           </tbody>
         </table>
-        {data && data.pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
-            <span className="text-sm text-gray-500">Page {data.page} of {data.pages} ({data.total} total)</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
-              <button onClick={() => setPage(Math.min(data.pages, page + 1))} disabled={page === data.pages} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+      </div>
+
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <p className="text-center py-8 text-gray-400">Loading...</p>
+        ) : data?.items?.length === 0 ? (
+          <p className="text-center py-8 text-gray-400">No payments found</p>
+        ) : (
+          data?.items?.map((p) => (
+            <div key={p.id} className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-gray-800">{p.member_name}</p>
+                  <p className="text-xs text-gray-500 font-mono">{p.receipt_no}</p>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+                <p>{p.item_description}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="font-semibold text-gym-600">₱{p.amount.toLocaleString()}</span>
+                  <span className="text-xs">{p.payment_method} · {new Date(p.paid_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              {p.status === 'paid' && (
+                <button onClick={() => { if (confirm('Void this payment?')) voidMutation.mutate(p.id) }} className="mt-3 text-red-500 hover:text-red-700 text-xs font-medium">Void</button>
+              )}
             </div>
-          </div>
+          ))
         )}
       </div>
+
+      {data && data.pages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white rounded-xl shadow-sm">
+          <span className="text-sm text-gray-500">Page {data.page} of {data.pages} ({data.total} total)</span>
+          <div className="flex gap-2">
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
+            <button onClick={() => setPage(Math.min(data.pages, page + 1))} disabled={page === data.pages} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
