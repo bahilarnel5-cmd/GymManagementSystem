@@ -153,9 +153,6 @@ export default function CoachSchedules() {
                   }`}>
                     {s.shift_type}
                   </span>
-                  <button onClick={() => deleteMutation.mutate(s.id)} className="text-red-400 hover:text-red-600 text-xs ml-1">
-                    <i className="bi bi-x-lg" />
-                  </button>
                 </div>
               ))
             )}
