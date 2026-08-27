@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 
 const coachColors = [
@@ -11,18 +11,12 @@ const coachColors = [
 ]
 
 export default function Coaches() {
-  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
     queryKey: ['coaches', page, search],
     queryFn: () => api.get(`/gym_coaches/?page=${page}&per_page=10&search=${search}`).then((r) => r.data),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (id) => api.delete(`/gym_coaches/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches'] }),
   })
 
   const getInitials = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -114,16 +108,6 @@ export default function Coaches() {
                       </div>
                     )}
                   </div>
-                </div>
-
-                {/* Footer */}
-                <div className="px-5 pb-4">
-                  <button
-                    onClick={() => { if (confirm(`Delete ${c.full_name}?`)) deleteMutation.mutate(c.id) }}
-                    className="w-full py-2 rounded-xl text-xs font-medium text-red-500 hover:bg-red-50 border border-red-100 transition-colors"
-                  >
-                    Remove Coach
-                  </button>
                 </div>
               </div>
             )

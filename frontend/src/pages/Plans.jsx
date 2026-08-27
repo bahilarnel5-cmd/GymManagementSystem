@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 
 const planStyles = {
@@ -36,16 +36,9 @@ function getPlanStyle(name) {
 }
 
 export default function Plans() {
-  const queryClient = useQueryClient()
-
   const { data, isLoading } = useQuery({
     queryKey: ['plans'],
     queryFn: () => api.get('/gym_membership_plans/?per_page=50').then((r) => r.data),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (id) => api.delete(`/gym_membership_plans/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans'] }),
   })
 
   return (
@@ -110,16 +103,6 @@ export default function Plans() {
                   ) : (
                     <p className="text-sm text-gray-400 italic text-center py-4">No features listed</p>
                   )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 pb-5">
-                  <button
-                    onClick={() => { if (confirm(`Delete ${p.name} plan?`)) deleteMutation.mutate(p.id) }}
-                    className="w-full py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 border border-red-200 transition-colors"
-                  >
-                    Delete Plan
-                  </button>
                 </div>
               </div>
             )
