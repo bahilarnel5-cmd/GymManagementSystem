@@ -59,7 +59,6 @@ export default function MemberCoaches() {
             const color = coachColors[idx % coachColors.length]
             return (
               <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
-                {/* Header */}
                 <div className={`${color.bg} p-5 pb-8 relative`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
@@ -72,23 +71,36 @@ export default function MemberCoaches() {
                   </div>
                 </div>
 
-                {/* Body */}
                 <div className="relative px-5 pb-5 -mt-3">
                   <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-                    {Object.keys(c.weekly_schedule || {}).length > 0 && (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                        <i className="bi bi-cash-stack text-violet-600 text-xs" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
+                        <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/hr</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <i className="bi bi-telephone text-blue-600 text-xs" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Contact</p>
+                        <p className="text-sm font-medium text-gray-700">{c.mobile_contact}</p>
+                      </div>
+                    </div>
+
+                    {c.shift_schedule && (
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
                           <i className="bi bi-clock text-amber-600 text-xs" />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Weekly Schedule</p>
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(c.weekly_schedule).map(([day, shifts]) => (
-                              <span key={day} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-500">
-                                {day.slice(0, 3)}: {shifts.join(', ')}
-                              </span>
-                            ))}
-                          </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Schedule</p>
+                          <p className="text-sm font-medium text-gray-700">{c.shift_schedule}</p>
                         </div>
                       </div>
                     )}
