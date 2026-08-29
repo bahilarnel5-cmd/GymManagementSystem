@@ -49,7 +49,7 @@ def ensure_bucket(bucket: str = CHANGE_REQUEST_BUCKET) -> None:
                  for b in existing}
         if bucket not in names:
             try:
-                sb.storage.create_bucket(bucket, {"public": False})
+                sb.storage.create_bucket(bucket, options={"public": False})
             except Exception:
                 pass  # already created by a concurrent process
     except Exception:
