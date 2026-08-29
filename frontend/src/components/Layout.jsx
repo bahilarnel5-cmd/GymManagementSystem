@@ -3,24 +3,17 @@ import { useAuthStore } from '../lib/store'
 import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import api from '../lib/api'
-
-const navItems = [
-  { to: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
-  { to: '/members', icon: 'bi-people', label: 'Members' },
-  { to: '/coaches', icon: 'bi-person-badge', label: 'Coaches' },
-  { to: '/plans', icon: 'bi-card-list', label: 'Membership Plans' },
-  { to: '/memberships', icon: 'bi-credit-card', label: 'Memberships' },
-  { to: '/payments', icon: 'bi-cash-coin', label: 'Payments' },
-  { to: '/settings', icon: 'bi-gear', label: 'Settings' },
-]
+import { useMenus } from '../lib/useMenus'
 
 const iconColors = {
   '/dashboard': 'from-blue-400 to-blue-600',
   '/members': 'from-emerald-400 to-emerald-600',
   '/coaches': 'from-violet-400 to-violet-600',
+  '/coach-students': 'from-teal-400 to-teal-600',
   '/plans': 'from-amber-400 to-amber-600',
   '/memberships': 'from-pink-400 to-pink-600',
   '/payments': 'from-cyan-400 to-cyan-600',
+  '/activity-logs': 'from-orange-400 to-orange-600',
   '/settings': 'from-slate-400 to-slate-600',
 }
 
@@ -32,6 +25,7 @@ export default function Layout({ children }) {
   const role = useAuthStore((s) => s.role)
   const location = useLocation()
   const navigate = useNavigate()
+  const { menus } = useMenus()
 
   const { data: expiringData } = useQuery({
     queryKey: ['memberships-expiring'],
@@ -83,12 +77,12 @@ export default function Layout({ children }) {
 
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.to
+          {menus.map((item) => {
+            const isActive = location.pathname === item.path
             return (
               <NavLink
-                key={item.to}
-                to={item.to}
+                key={item.path}
+                to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
                   isActive
@@ -97,11 +91,11 @@ export default function Layout({ children }) {
                 }`}
               >
                 {isActive && (
-                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b ${iconColors[item.to]}`} />
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b ${iconColors[item.path] || 'from-blue-400 to-blue-600'}`} />
                 )}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                   isActive
-                    ? `bg-gradient-to-br ${iconColors[item.to]} shadow-md`
+                    ? `bg-gradient-to-br ${iconColors[item.path] || 'from-blue-400 to-blue-600'} shadow-md`
                     : 'bg-white/[0.05]'
                 }`}>
                   <i className={`bi ${item.icon} text-sm ${isActive ? 'text-white' : 'text-slate-400'}`} />

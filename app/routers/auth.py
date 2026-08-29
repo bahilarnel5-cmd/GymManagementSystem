@@ -11,7 +11,6 @@ from app.schemas import RegisterRequest, LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-
 @router.post("/register", response_model=dict)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     member = db.query(GymMember).filter(GymMember.id == payload.member_id).first()
@@ -43,6 +42,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    from app.activity import log_action
+
     # NOTE: email is now unique per-org, not globally (DB contract §5). In your
     # local single-org sandbox this lookup is still safe, but once integrated
     # into multi-tenant Argo, login needs an org selector too, or this will
@@ -56,7 +57,24 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         "role": user.role,
         "organization_id": str(user.organization_id),
         "member_id": str(user.member_id) if user.member_id else None,
+        "coach_id": str(user.coach_id) if user.coach_id else None,
     })
+    actor_name = payload.email.split("@")[0]
+    if user.coach_id:
+        from app.models import GymCoach
+        coach = db.query(GymCoach).filter(GymCoach.id == user.coach_id).first()
+        if coach:
+            actor_name = coach.full_name
+    elif user.member_id:
+        member = db.query(GymMember).filter(GymMember.id == user.member_id).first()
+        if member:
+            actor_name = member.full_name
+    log_action(
+        db, user.organization_id, "login", "auth", entity_id=user.id,
+        description=f"{actor_name} signed in ({user.role})",
+        actor_user_id=user.id, actor_name=actor_name, actor_role=user.role,
+    )
+    db.commit()
     return TokenResponse(access_token=token, role=user.role, member_id=str(user.member_id) if user.member_id else None)
 
 

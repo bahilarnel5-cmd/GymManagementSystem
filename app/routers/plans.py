@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import GymMembershipPlan
 from app.auth import require_role
 from app.schemas import PlanCreate, PlanUpdate
+from app.activity import log_action
 
 router = APIRouter(prefix="/gym_membership_plans", tags=["plans"])
 
@@ -64,6 +65,12 @@ def create_plan(plan: PlanCreate, payload: dict = Depends(require_role("admin"))
     db.add(new_plan)
     db.commit()
     db.refresh(new_plan)
+    log_action(
+        db, plan.organization_id, "create", "plan", entity_id=new_plan.id,
+        description=f"Created membership plan {new_plan.name} (₱{float(new_plan.price):,.2f})",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(new_plan.id), "name": new_plan.name}
 
 

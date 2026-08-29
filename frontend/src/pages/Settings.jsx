@@ -12,17 +12,18 @@ export default function Settings() {
     { id: 'members', label: 'Members', icon: 'bi-people' },
     { id: 'coaches', label: 'Coaches', icon: 'bi-person-badge' },
     { id: 'plans', label: 'Membership Plans', icon: 'bi-card-list' },
+    { id: 'roles', label: 'Sidebar & Roles', icon: 'bi-list-check' },
   ]
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage members, coaches, and membership plans</p>
+        <p className="text-sm text-gray-500 mt-1">Manage members, coaches, plans, and role-based sidebar</p>
       </div>
 
       {/* Simple navbar-style tabs matching the settings UI */}
-      <div className="mb-6 inline-flex items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
+      <div className="mb-6 inline-flex flex-wrap items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -43,6 +44,7 @@ export default function Settings() {
         {activeTab === 'members' && <MembersForm orgId={orgId} queryClient={queryClient} />}
         {activeTab === 'coaches' && <CoachesManager orgId={orgId} queryClient={queryClient} />}
         {activeTab === 'plans' && <PlansManager orgId={orgId} queryClient={queryClient} />}
+        {activeTab === 'roles' && <RolesManager orgId={orgId} queryClient={queryClient} />}
       </div>
     </div>
   )
@@ -486,6 +488,160 @@ function PlanForm({ orgId, queryClient, editData, onDone }) {
           </div>
         )}
       </form>
+    </div>
+  )
+}
+
+function RolesManager({ orgId, queryClient }) {
+  const [expandedRole, setExpandedRole] = useState('admin')
+  const { data, isLoading } = useQuery({
+    queryKey: ['role-menus'],
+    queryFn: () => api.get('/gym_menus/roles').then((r) => r.data),
+  })
+  const roles = data?.roles || []
+
+  const saveMutation = useMutation({
+    mutationFn: (payload) => api.put(`/gym_menus/roles/${payload.role}`, { role: payload.role, items: payload.items }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['role-menus'] })
+      queryClient.invalidateQueries({ queryKey: ['my-menus'] })
+    },
+  })
+
+  const toggleItem = (role, items, menuId) => {
+    const next = items.map((it) => it.menu_id === menuId ? { ...it, enabled: !it.enabled } : it)
+    saveMutation.mutate({ role, items: next })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+            <i className="bi bi-list-check text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Role-Based Sidebar</h2>
+            <p className="text-indigo-100 text-xs">Choose which menu items each role can see</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {roles.map((role) => (
+              <div key={role.role}>
+                <button
+                  onClick={() => setExpandedRole(expandedRole === role.role ? null : role.role)}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="font-semibold text-gray-800 capitalize">{role.role}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400">{role.items.filter(i => i.enabled).length} items</span>
+                    <i className={`bi ${expandedRole === role.role ? 'bi-chevron-up' : 'bi-chevron-down'} text-gray-400`} />
+                  </span>
+                </button>
+                {expandedRole === role.role && (
+                  <div className="px-5 pb-5 space-y-2">
+                    {role.items.map((item) => (
+                      <div key={item.menu_id} className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-gray-50">
+                        <div className="flex items-center gap-2.5">
+                          <i className={`bi ${item.icon} text-indigo-500 text-sm`} />
+                          <span className="text-sm text-gray-700">{item.label}</span>
+                          <span className="text-[10px] text-gray-400 font-mono">{item.path}</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={item.enabled}
+                            onChange={() => toggleItem(role.role, role.items, item.menu_id)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:bg-indigo-600 transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <CoachAccountForm orgId={orgId} />
+    </div>
+  )
+}
+
+function CoachAccountForm({ orgId }) {
+  const queryClientInternal = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ coach_id: '', email: '', password: '' })
+
+  const { data: coachesData } = useQuery({
+    queryKey: ['coaches'],
+    queryFn: () => api.get('/gym_coaches/?per_page=100').then((r) => r.data),
+  })
+  const coaches = coachesData?.items || []
+
+  const createMutation = useMutation({
+    mutationFn: (c) => api.post('/gym_menus/coach-accounts', c),
+    onSuccess: () => {
+      setForm({ coach_id: '', email: '', password: '' })
+      setShowForm(false)
+      queryClientInternal.invalidateQueries({ queryKey: ['role-menus'] })
+    },
+  })
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <i className="bi bi-person-plus text-violet-600" />
+          <h2 className="font-semibold text-gray-800">Coach Portal Accounts</h2>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-2 bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-700 transition-colors"
+        >
+          <i className={`bi ${showForm ? 'bi-x-lg' : 'bi-plus-lg'} text-xs`} />
+          {showForm ? 'Close' : 'Give a Coach a Login'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form) }}
+          className="p-5 space-y-4"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-3">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Coach</label>
+              <select value={form.coach_id} onChange={(e) => setForm({ ...form, coach_id: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required>
+                <option value="">Select a coach...</option>
+                {coaches.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+              <input type="email" placeholder="coach@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
+              <input type="text" placeholder="Set a password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" disabled={createMutation.isPending} className="w-full bg-violet-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
+                {createMutation.isPending ? 'Creating...' : 'Create Login'}
+              </button>
+            </div>
+          </div>
+          {createMutation.isError && <p className="text-sm text-red-500">{createMutation.error?.response?.data?.detail || 'Error'}</p>}
+          {createMutation.isSuccess && <p className="text-sm text-violet-600">Coach login created! They can now sign in to the Coach Portal.</p>}
+        </form>
+      )}
     </div>
   )
 }

@@ -11,6 +11,9 @@ from .dashboard import router as dashboard_router
 from .auth import router as auth_router
 from .coach_schedules import router as coach_schedules_router
 from .member_portal import router as member_portal_router
+from .activity_logs import router as activity_logs_router
+from .menus import router as menus_router
+from .coach_portal import router as coach_portal_router
 
 all_routers = [
     auth_router,
@@ -26,4 +29,7 @@ all_routers = [
     renewals_router,
     coach_schedules_router,
     member_portal_router,
+    activity_logs_router,
+    menus_router,
+    coach_portal_router,
 ]

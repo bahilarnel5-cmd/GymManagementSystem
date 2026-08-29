@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import GymMember, GymUser
 from app.auth import require_role
 from app.schemas import MemberCreate, MemberUpdate
+from app.activity import log_action
 
 router = APIRouter(prefix="/gym_members", tags=["members"])
 
@@ -94,6 +95,12 @@ def create_member(member: MemberCreate, payload: dict = Depends(require_role("ad
     db.add(new_member)
     db.commit()
     db.refresh(new_member)
+    log_action(
+        db, member.organization_id, "create", "member", entity_id=new_member.id,
+        description=f"Registered member {new_member.full_name} ({new_member.member_code})",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(new_member.id), "full_name": new_member.full_name}
 
 
@@ -124,6 +131,12 @@ def update_member(member_id: uuid.UUID, update: MemberUpdate, payload: dict = De
     m.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(m)
+    log_action(
+        db, m.organization_id, "update", "member", entity_id=m.id,
+        description=f"Updated member {m.full_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(m.id), "full_name": m.full_name}
 
 
@@ -132,6 +145,14 @@ def delete_member(member_id: uuid.UUID, payload: dict = Depends(require_role("ad
     m = db.query(GymMember).filter(GymMember.id == member_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Member not found")
+    member_name = m.full_name
+    org_id = m.organization_id
     db.delete(m)
+    db.commit()
+    log_action(
+        db, org_id, "delete", "member", entity_id=member_id,
+        description=f"Deleted member {member_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
     db.commit()
     return {"deleted": True}

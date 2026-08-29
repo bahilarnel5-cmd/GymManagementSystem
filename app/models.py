@@ -114,6 +114,9 @@ class GymPayment(Base):
     receipt_no: Mapped[str] = mapped_column(String(30), nullable=False)
     item_description: Mapped[str] = mapped_column(String(200), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    payment_category: Mapped[str] = mapped_column(String(20), nullable=False, default="membership")
+    discount_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    discount_description: Mapped[str | None] = mapped_column(String(200), nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     reference_no: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="paid")
@@ -168,6 +171,7 @@ class GymUser(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     member_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=True)
+    coach_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coaches.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -218,5 +222,43 @@ class MemberBooking(Base):
     start_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     weeks: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class GymActivityLog(Base):
+    """History log tracking important system actions and user activity."""
+    __tablename__ = "gym_activity_logs"
+    __table_args__ = (
+        Index("ix_gym_activity_logs_org_created", "organization_id", "created_at"),
+        Index("ix_gym_activity_logs_org_action", "organization_id", "action"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    actor_name: Mapped[str] = mapped_column(String(150), nullable=False, default="System")
+    actor_role: Mapped[str] = mapped_column(String(20), nullable=False, default="admin")
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False, default="system")
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class GymRoleMenu(Base):
+    """Admin-configurable sidebar menu items assigned per role."""
+    __tablename__ = "gym_role_menus"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "role", "menu_id", name="uq_gym_role_menu_org_role_item"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    menu_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    icon: Mapped[str] = mapped_column(String(50), nullable=False)
+    path: Mapped[str] = mapped_column(String(100), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

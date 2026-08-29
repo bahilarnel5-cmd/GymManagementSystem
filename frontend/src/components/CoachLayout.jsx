@@ -3,22 +3,21 @@ import { useAuthStore } from '../lib/store'
 import { useState } from 'react'
 import { useMenus } from '../lib/useMenus'
 
-const memberIconColors = {
-  '/member/dashboard': 'from-blue-400 to-blue-600',
-  '/member/coaches': 'from-violet-400 to-violet-600',
-  '/member/renewals': 'from-emerald-400 to-emerald-600',
+const coachIconColors = {
+  '/coach/dashboard': 'from-blue-400 to-blue-600',
+  '/coach/students': 'from-violet-400 to-violet-600',
+  '/coach/bookings': 'from-emerald-400 to-emerald-600',
+  '/coach/schedules': 'from-amber-400 to-amber-600',
 }
 
-export default function MemberLayout({ children }) {
+export default function CoachLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const logout = useAuthStore((s) => s.logout)
   const role = useAuthStore((s) => s.role)
-  const memberId = useAuthStore((s) => s.memberId)
   const location = useLocation()
   const navigate = useNavigate()
   const { menus } = useMenus()
-
-  const memberNavItems = menus
+  const coachNavItems = menus
 
   const handleLogout = () => {
     logout()
@@ -35,12 +34,12 @@ export default function MemberLayout({ children }) {
         style={{ background: 'linear-gradient(180deg, #0c1929 0%, #132743 40%, #1a3358 100%)' }}
       >
         <div className="h-16 flex items-center gap-3 px-5 border-b border-white/[0.06]">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <i className="bi bi-person-fill text-white text-sm" />
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <i className="bi bi-person-badge text-white text-sm" />
           </div>
           <div>
             <span className="text-sm font-bold tracking-tight">GymManager</span>
-            <p className="text-[10px] text-slate-400 -mt-0.5">Member Portal</p>
+            <p className="text-[10px] text-slate-400 -mt-0.5">Coach Portal</p>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="ml-auto text-slate-400 hover:text-white lg:hidden">
             <i className="bi bi-x-lg" />
@@ -52,7 +51,7 @@ export default function MemberLayout({ children }) {
         </div>
 
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {memberNavItems.map((item) => {
+          {coachNavItems.map((item) => {
             const isActive = location.pathname === item.path
             return (
               <NavLink
@@ -66,11 +65,11 @@ export default function MemberLayout({ children }) {
                 }`}
               >
                 {isActive && (
-                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b ${memberIconColors[item.path]}`} />
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b ${coachIconColors[item.path]}`} />
                 )}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                   isActive
-                    ? `bg-gradient-to-br ${memberIconColors[item.path]} shadow-md`
+                    ? `bg-gradient-to-br ${coachIconColors[item.path]} shadow-md`
                     : 'bg-white/[0.05]'
                 }`}>
                   <i className={`bi ${item.icon} text-sm ${isActive ? 'text-white' : 'text-slate-400'}`} />
@@ -83,12 +82,12 @@ export default function MemberLayout({ children }) {
 
         <div className="p-3 border-t border-white/[0.06]">
           <div className="flex items-center gap-3 px-3 py-2.5 mb-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center">
-              <i className="bi bi-person-fill text-xs text-violet-200" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center">
+              <i className="bi bi-person-badge text-xs text-amber-200" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-slate-200 capitalize">Member</p>
-              <p className="text-[10px] text-slate-500">Member Portal</p>
+              <p className="text-xs font-medium text-slate-200 capitalize">Coach</p>
+              <p className="text-[10px] text-slate-500">Coach Portal</p>
             </div>
           </div>
           <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200 transition-colors">
@@ -106,7 +105,7 @@ export default function MemberLayout({ children }) {
             <i className="bi bi-list text-2xl" />
           </button>
           <div className="flex items-center gap-3 ml-auto">
-            <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2.5 py-1 rounded-full capitalize">Member</span>
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full capitalize">Coach</span>
           </div>
         </header>
         <main className="p-4 sm:p-6">{children}</main>

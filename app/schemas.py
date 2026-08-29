@@ -170,6 +170,9 @@ class PaymentCreate(BaseModel):
     membership_id: Optional[uuid.UUID] = None
     item_description: str
     amount: float
+    payment_category: str = "membership"
+    discount_amount: float = 0
+    discount_description: Optional[str] = None
     payment_method: str
     reference_no: Optional[str] = None
 
@@ -181,6 +184,9 @@ class PaymentResponse(BaseModel):
     member_name: str
     item_description: str
     amount: float
+    payment_category: str
+    discount_amount: float
+    discount_description: Optional[str]
     payment_method: str
     reference_no: Optional[str]
     status: str
@@ -401,3 +407,23 @@ class CoachSlotResponse(BaseModel):
     end_hour: int
     available: bool
     booked_by_me: bool
+
+
+# ---- Coach Portal Accounts ----
+
+class CoachAccountCreate(BaseModel):
+    coach_id: uuid.UUID
+    email: EmailStr
+    password: str
+
+
+# ---- Role Menu Config ----
+
+class MenuItemUpdate(BaseModel):
+    menu_id: str
+    enabled: bool
+
+
+class RoleMenuUpdate(BaseModel):
+    role: str
+    items: list[MenuItemUpdate]

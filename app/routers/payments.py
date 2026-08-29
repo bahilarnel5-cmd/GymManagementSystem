@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import GymPayment, GymMember
 from app.auth import require_role
 from app.schemas import PaymentCreate
+from app.activity import log_action
 
 router = APIRouter(prefix="/gym_payments", tags=["payments"])
 
@@ -51,6 +52,9 @@ def list_payments(
                 "member_name": m.full_name,
                 "item_description": p.item_description,
                 "amount": float(p.amount),
+                "payment_category": p.payment_category,
+                "discount_amount": float(p.discount_amount or 0),
+                "discount_description": p.discount_description,
                 "payment_method": p.payment_method,
                 "reference_no": p.reference_no,
                 "status": p.status,
@@ -68,6 +72,8 @@ def list_payments(
 @router.post("/")
 def create_payment(payment: PaymentCreate, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
     receipt_no = f"OR-{uuid.uuid4().hex[:6].upper()}"
+    discount = max(float(payment.discount_amount or 0), 0)
+    final_amount = max(float(payment.amount) - discount, 0)
     new_payment = GymPayment(
         id=uuid.uuid4(),
         organization_id=payment.organization_id,
@@ -75,7 +81,10 @@ def create_payment(payment: PaymentCreate, payload: dict = Depends(require_role(
         membership_id=payment.membership_id,
         receipt_no=receipt_no,
         item_description=payment.item_description,
-        amount=payment.amount,
+        amount=final_amount,
+        payment_category=payment.payment_category,
+        discount_amount=discount,
+        discount_description=payment.discount_description,
         payment_method=payment.payment_method,
         reference_no=payment.reference_no,
         status="paid",
@@ -86,6 +95,19 @@ def create_payment(payment: PaymentCreate, payload: dict = Depends(require_role(
     db.add(new_payment)
     db.commit()
     db.refresh(new_payment)
+    member = db.query(GymMember).filter(GymMember.id == payment.member_id).first()
+    member_name = member.full_name if member else payment.member_id
+    log_action(
+        db, payment.organization_id, "create", "payment", entity_id=new_payment.id,
+        description=(
+            f"Recorded {payment.payment_category} payment {receipt_no} for {member_name} "
+            f"(₱{final_amount:,.2f}"
+            + (f", ₱{discount:,.2f} discount" if discount > 0 else "")
+            + ")"
+        ),
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(new_payment.id), "receipt_no": new_payment.receipt_no}
 
 
@@ -96,5 +118,11 @@ def void_payment(payment_id: uuid.UUID, payload: dict = Depends(require_role("ad
         raise HTTPException(status_code=404, detail="Payment not found")
     p.status = "voided"
     p.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    log_action(
+        db, p.organization_id, "void", "payment", entity_id=p.id,
+        description=f"Voided payment {p.receipt_no}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
     db.commit()
     return {"voided": True}

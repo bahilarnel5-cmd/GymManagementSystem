@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GymCoach
+from app.models import GymCoach, GymMember
 from app.auth import require_role
 from app.schemas import CoachCreate, CoachUpdate
+from app.activity import log_action
+from .coach_portal import _student_paid_info
 
 router = APIRouter(prefix="/gym_coaches", tags=["coaches"])
 
@@ -67,6 +69,12 @@ def create_coach(coach: CoachCreate, payload: dict = Depends(require_role("admin
     db.add(new_coach)
     db.commit()
     db.refresh(new_coach)
+    log_action(
+        db, coach.organization_id, "create", "coach", entity_id=new_coach.id,
+        description=f"Added coach {new_coach.full_name} ({new_coach.specialization})",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(new_coach.id), "full_name": new_coach.full_name}
 
 
@@ -95,6 +103,12 @@ def update_coach(coach_id: uuid.UUID, update: CoachUpdate, payload: dict = Depen
     c.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(c)
+    log_action(
+        db, c.organization_id, "update", "coach", entity_id=c.id,
+        description=f"Updated coach {c.full_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"id": str(c.id), "full_name": c.full_name}
 
 
@@ -103,6 +117,67 @@ def delete_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admi
     c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Coach not found")
+    coach_name = c.full_name
+    org_id = c.organization_id
     db.delete(c)
     db.commit()
+    log_action(
+        db, org_id, "delete", "coach", entity_id=coach_id,
+        description=f"Deleted coach {coach_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
     return {"deleted": True}
+
+
+@router.get("/students-summary")
+def students_summary(payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    """Coach-and-student table: students per coach + who has paid."""
+    organization_id = payload.get("organization_id")
+    coaches = db.query(GymCoach).filter(
+        GymCoach.organization_id == organization_id
+    ).order_by(GymCoach.full_name).all()
+
+    result = []
+    total_assigned = 0
+    for c in coaches:
+        students = db.query(GymMember).filter(
+            GymMember.assigned_coach_id == c.id,
+            GymMember.organization_id == organization_id,
+        ).order_by(GymMember.full_name).all()
+        student_rows = []
+        paid = 0
+        for m in students:
+            info = _student_paid_info(db, m, organization_id)
+            student_rows.append({
+                "member_id": str(m.id),
+                "member_code": m.member_code,
+                "full_name": m.full_name,
+                "mobile_phone": m.mobile_phone,
+                "status": m.status,
+                **info,
+            })
+            if info["paid"]:
+                paid += 1
+        total_assigned += len(student_rows)
+        result.append({
+            "coach_id": str(c.id),
+            "coach_name": c.full_name,
+            "specialization": c.specialization,
+            "student_count": len(student_rows),
+            "paid_count": paid,
+            "unpaid_count": len(student_rows) - paid,
+            "students": student_rows,
+        })
+
+    unassigned = db.query(GymMember).filter(
+        GymMember.assigned_coach_id.is_(None),
+        GymMember.organization_id == organization_id,
+    ).count()
+
+    return {
+        "items": result,
+        "total_coaches": len(coaches),
+        "total_assigned_students": total_assigned,
+        "unassigned_students": unassigned,
+    }

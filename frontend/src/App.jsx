@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './lib/store'
 import Layout from './components/Layout'
 import MemberLayout from './components/MemberLayout'
+import CoachLayout from './components/CoachLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -11,9 +12,15 @@ import Plans from './pages/Plans'
 import Memberships from './pages/Memberships'
 import Payments from './pages/Payments'
 import Settings from './pages/Settings'
+import ActivityLogs from './pages/ActivityLogs'
+import CoachStudentsAdmin from './pages/CoachStudentsAdmin'
 import MemberDashboard from './pages/MemberDashboard'
 import MemberCoaches from './pages/MemberCoaches'
 import MemberRenewals from './pages/MemberRenewals'
+import CoachDashboard from './pages/CoachDashboard'
+import CoachStudents from './pages/CoachStudents'
+import CoachBookings from './pages/CoachBookings'
+import CoachSchedule from './pages/CoachSchedules'
 
 function ProtectedRoute({ children }) {
   const token = useAuthStore((s) => s.token)
@@ -22,7 +29,12 @@ function ProtectedRoute({ children }) {
 
 function PublicOnlyRoute({ children }) {
   const token = useAuthStore((s) => s.token)
-  return token ? <Navigate to="/dashboard" /> : children
+  const role = useAuthStore((s) => s.role)
+  if (token) {
+    const home = role === 'admin' ? '/dashboard' : role === 'coach' ? '/coach/dashboard' : '/member/dashboard'
+    return <Navigate to={home} />
+  }
+  return children
 }
 
 function AdminRoutes() {
@@ -32,9 +44,11 @@ function AdminRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/members" element={<Members />} />
         <Route path="/coaches" element={<Coaches />} />
+        <Route path="/coach-students" element={<CoachStudentsAdmin />} />
         <Route path="/plans" element={<Plans />} />
         <Route path="/memberships" element={<Memberships />} />
         <Route path="/payments" element={<Payments />} />
+        <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
@@ -55,8 +69,24 @@ function MemberRoutes() {
   )
 }
 
+function CoachRoutes() {
+  return (
+    <CoachLayout>
+      <Routes>
+        <Route path="/coach/dashboard" element={<CoachDashboard />} />
+        <Route path="/coach/students" element={<CoachStudents />} />
+        <Route path="/coach/bookings" element={<CoachBookings />} />
+        <Route path="/coach/schedules" element={<CoachSchedule />} />
+        <Route path="*" element={<Navigate to="/coach/dashboard" />} />
+      </Routes>
+    </CoachLayout>
+  )
+}
+
 export default function App() {
   const role = useAuthStore((s) => s.role)
+
+  const HomeRoutes = role === 'admin' ? <AdminRoutes /> : role === 'coach' ? <CoachRoutes /> : <MemberRoutes />
 
   return (
     <Routes>
@@ -66,7 +96,7 @@ export default function App() {
         path="/*"
         element={
           <ProtectedRoute>
-            {role === 'admin' ? <AdminRoutes /> : <MemberRoutes />}
+            {HomeRoutes}
           </ProtectedRoute>
         }
       />
