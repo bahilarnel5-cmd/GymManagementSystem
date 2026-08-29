@@ -26,8 +26,8 @@ def list_payments(
     )
     if search:
         query = query.filter(
-            GymMember.full_name.ilike(f"%{search}%")
-            | GymPayment.receipt_no.ilike(f"%{search}%")
+            GymMember.full_name.ilike(f"{search}%")
+            | GymPayment.receipt_no.ilike(f"{search}%")
         )
     if status:
         query = query.filter(GymPayment.status == status)

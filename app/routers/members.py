@@ -25,10 +25,10 @@ def list_members(
 
     if search:
         query = query.filter(
-            GymMember.full_name.ilike(f"%{search}%")
-            | GymMember.member_code.ilike(f"%{search}%")
-            | GymMember.email.ilike(f"%{search}%")
-            | GymMember.mobile_phone.ilike(f"%{search}%")
+            GymMember.full_name.ilike(f"{search}%")
+            | GymMember.member_code.ilike(f"{search}%")
+            | GymMember.email.ilike(f"{search}%")
+            | GymMember.mobile_phone.ilike(f"{search}%")
         )
     if status:
         query = query.filter(GymMember.status == status)

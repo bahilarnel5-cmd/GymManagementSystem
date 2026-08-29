@@ -1,12 +1,13 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../lib/store'
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useRef } from 'react'
+import api from '../lib/api'
 
 const navItems = [
   { to: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
   { to: '/members', icon: 'bi-people', label: 'Members' },
   { to: '/coaches', icon: 'bi-person-badge', label: 'Coaches' },
-  { to: '/coach-schedules', icon: 'bi-calendar-week', label: 'Coach Schedules' },
   { to: '/plans', icon: 'bi-card-list', label: 'Membership Plans' },
   { to: '/memberships', icon: 'bi-credit-card', label: 'Memberships' },
   { to: '/payments', icon: 'bi-cash-coin', label: 'Payments' },
@@ -17,7 +18,6 @@ const iconColors = {
   '/dashboard': 'from-blue-400 to-blue-600',
   '/members': 'from-emerald-400 to-emerald-600',
   '/coaches': 'from-violet-400 to-violet-600',
-  '/coach-schedules': 'from-cyan-400 to-cyan-600',
   '/plans': 'from-amber-400 to-amber-600',
   '/memberships': 'from-pink-400 to-pink-600',
   '/payments': 'from-cyan-400 to-cyan-600',
@@ -26,10 +26,27 @@ const iconColors = {
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef(null)
   const logout = useAuthStore((s) => s.logout)
   const role = useAuthStore((s) => s.role)
   const location = useLocation()
   const navigate = useNavigate()
+
+  const { data: expiringData } = useQuery({
+    queryKey: ['memberships-expiring'],
+    queryFn: () => api.get('/gym_memberships/expiring').then((r) => r.data),
+    enabled: role === 'admin',
+  })
+  const expiring = expiringData?.items || []
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -122,6 +139,55 @@ export default function Layout({ children }) {
             <i className="bi bi-list text-2xl" />
           </button>
           <div className="flex items-center gap-3 ml-auto">
+            {role === 'admin' && (
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  className="relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <i className="bi bi-bell text-lg" />
+                  {expiring.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {expiring.length}
+                    </span>
+                  )}
+                </button>
+                {notifOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-40">
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-800">Notifications</p>
+                      <button onClick={() => { setNotifOpen(false); navigate('/memberships') }} className="text-xs text-gym-600 hover:text-gym-700 font-medium">
+                        View all
+                      </button>
+                    </div>
+                    {expiring.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-gray-400 text-center">No notifications</p>
+                    ) : (
+                      <div className="max-h-72 overflow-y-auto">
+                        {expiring.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => { setNotifOpen(false); navigate('/memberships') }}
+                            className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                          >
+                            <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-[10px] font-bold shrink-0">
+                              {m.member_name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{m.member_name}</p>
+                              <p className="text-xs text-gray-500">{m.plan_name} expires {m.end_date}</p>
+                              <p className="text-[10px] font-semibold text-amber-600 mt-0.5">
+                                {m.days_left === 0 ? 'Expires today' : `${m.days_left} day${m.days_left === 1 ? '' : 's'} left`}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full capitalize">{role}</span>
           </div>
         </header>

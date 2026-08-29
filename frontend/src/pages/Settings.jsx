@@ -9,43 +9,32 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('members')
 
   const tabs = [
-    { id: 'members', label: 'Members', icon: 'bi-people', color: 'from-emerald-400 to-emerald-600' },
-    { id: 'coaches', label: 'Coaches', icon: 'bi-person-badge', color: 'from-violet-400 to-violet-600' },
-    { id: 'plans', label: 'Membership Plans', icon: 'bi-card-list', color: 'from-amber-400 to-amber-600' },
+    { id: 'members', label: 'Members', icon: 'bi-people' },
+    { id: 'coaches', label: 'Coaches', icon: 'bi-person-badge' },
+    { id: 'plans', label: 'Membership Plans', icon: 'bi-card-list' },
   ]
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Manage members, coaches, and membership plans</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* Simple navbar-style tabs matching the settings UI */}
+      <div className="mb-6 inline-flex items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               activeTab === tab.id
-                ? 'border-gym-500 bg-gym-50 shadow-md shadow-gym-100'
-                : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm'
+                ? 'bg-white text-gym-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${tab.color} flex items-center justify-center shadow-md`}>
-              <i className={`bi ${tab.icon} text-white text-sm`} />
-            </div>
-            <div className="text-left">
-              <p className={`text-sm font-semibold ${activeTab === tab.id ? 'text-gym-700' : 'text-gray-700'}`}>{tab.label}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                {tab.id === 'members' ? 'Add new members' : tab.id === 'coaches' ? 'Add & edit coaches' : 'Add & edit plans'}
-              </p>
-            </div>
-            {activeTab === tab.id && (
-              <div className="absolute top-3 right-3">
-                <div className="w-2 h-2 rounded-full bg-gym-500" />
-              </div>
-            )}
+            <i className={`bi ${tab.icon} text-xs`} />
+            {tab.label}
           </button>
         ))}
       </div>

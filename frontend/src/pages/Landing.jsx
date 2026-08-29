@@ -67,31 +67,59 @@ export default function Landing() {
         <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#15325E]/60 blur-3xl" />
 
-        <div className="relative max-w-6xl mx-auto px-6 py-24 text-center">
-          <p className="text-xs font-bold tracking-wide text-blue-300 uppercase mb-4">
-            Fitness Operations Platform
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight max-w-3xl mx-auto mb-5">
-            Run your gym without the spreadsheets.
-          </h1>
-          <p className="text-slate-300 text-base md:text-lg max-w-xl mx-auto mb-10">
-            Members, coaches, memberships, payments, and check-ins —
-            all in one dashboard built for daily front-desk operations.
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
-              Log In to Dashboard
-              <i className="bi bi-arrow-right" />
-            </Link>
-            <a
-              href="#features"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-colors border border-white/10"
-            >
-              See features
-            </a>
+        <div className="relative max-w-6xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <p className="text-xs font-bold tracking-wide text-blue-300 uppercase mb-4">
+              Fitness Operations Platform
+            </p>
+            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-5">
+              Run your gym without the spreadsheets.
+            </h1>
+            <p className="text-slate-300 text-base md:text-lg max-w-xl mb-8">
+              Members, coaches, memberships, payments, and check-ins —
+              all in one dashboard built for daily front-desk operations.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-colors"
+              >
+                Log In to Dashboard
+                <i className="bi bi-arrow-right" />
+              </Link>
+              <a
+                href="#features"
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-colors border border-white/10"
+              >
+                See features
+              </a>
+            </div>
+          </div>
+
+          {/* Attractive gym image */}
+          <div className="relative hidden md:block">
+            <div className="absolute -inset-3 bg-blue-500/20 blur-2xl rounded-3xl" />
+            <img
+              src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1000&q=80"
+              alt="Modern gym facility with treadmills and weight equipment"
+              className="relative w-full h-96 object-cover rounded-3xl shadow-2xl border border-white/10"
+            />
+            <div className="absolute -bottom-5 -left-5 bg-white text-gray-900 rounded-2xl shadow-xl px-5 py-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+                <i className="bi bi-lightning-charge-fill text-white" />
+              </div>
+              <div>
+                <p className="text-xl font-extrabold">500+</p>
+                <p className="text-[11px] text-gray-500 -mt-0.5">Happy gym members</p>
+              </div>
+            </div>
+            <div className="absolute -top-4 -right-3 bg-emerald-500 text-white rounded-2xl shadow-lg px-4 py-3 flex items-center gap-2">
+              <i className="bi bi-graph-up-arrow" />
+              <div>
+                <p className="text-sm font-bold leading-none">24/7</p>
+                <p className="text-[10px] opacity-90 mt-0.5">Open access</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -28,8 +28,8 @@ def list_pt_sessions(
     )
     if search:
         query = query.filter(
-            GymMember.full_name.ilike(f"%{search}%")
-            | GymCoach.full_name.ilike(f"%{search}%")
+            GymMember.full_name.ilike(f"{search}%")
+            | GymCoach.full_name.ilike(f"{search}%")
         )
     if status:
         query = query.filter(GymPtSession.status == status)

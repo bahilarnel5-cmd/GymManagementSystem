@@ -27,7 +27,7 @@ def list_memberships(
         .join(GymMembershipPlan, GymMembership.plan_id == GymMembershipPlan.id)
     )
     if search:
-        query = query.filter(GymMember.full_name.ilike(f"%{search}%"))
+        query = query.filter(GymMember.full_name.ilike(f"{search}%"))
     if status:
         query = query.filter(GymMembership.status == status)
 
@@ -37,27 +37,75 @@ def list_memberships(
         (page - 1) * per_page
     ).limit(per_page).all()
 
+    formatted_rows = []
+    for gm, m, plan in rows:
+        days_left = None
+        if gm.end_date:
+            days_left = (gm.end_date - datetime.now(timezone.utc).date()).days
+        formatted_rows.append({
+            "id": str(gm.id),
+            "member_name": m.full_name,
+            "member_phone": m.mobile_phone,
+            "member_email": m.email,
+            "plan_name": plan.name,
+            "status": gm.status,
+            "payment_type": gm.payment_type,
+            "amount_due": float(gm.amount_due),
+            "amount_paid": float(gm.amount_paid),
+            "start_date": gm.start_date.isoformat(),
+            "end_date": gm.end_date.isoformat(),
+            "days_left": days_left,
+            "expiring_soon": (
+                gm.status in ("active", "pending_payment")
+                and days_left is not None
+                and 0 <= days_left <= 7
+            ),
+            "last_contacted_at": gm.last_contacted_at.isoformat() if gm.last_contacted_at else None,
+        })
+
     return {
-        "items": [
-            {
-                "id": str(gm.id),
-                "member_name": m.full_name,
-                "member_phone": m.mobile_phone,
-                "plan_name": plan.name,
-                "status": gm.status,
-                "payment_type": gm.payment_type,
-                "amount_due": float(gm.amount_due),
-                "amount_paid": float(gm.amount_paid),
-                "start_date": gm.start_date.isoformat(),
-                "end_date": gm.end_date.isoformat(),
-                "last_contacted_at": gm.last_contacted_at.isoformat() if gm.last_contacted_at else None,
-            }
-            for gm, m, plan in rows
-        ],
+        "items": formatted_rows,
         "total": total,
         "page": page,
         "per_page": per_page,
         "pages": pages,
+    }
+
+
+@router.get("/expiring")
+def list_expiring_memberships(
+    payload: dict = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Memberships expiring within the next 7 days (automated notification)."""
+    window = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
+    rows = (
+        db.query(GymMembership, GymMember, GymMembershipPlan)
+        .join(GymMember, GymMembership.member_id == GymMember.id)
+        .join(GymMembershipPlan, GymMembership.plan_id == GymMembershipPlan.id)
+        .filter(
+            GymMembership.status.in_(["active", "pending_payment"]),
+            GymMembership.end_date >= today,
+            GymMembership.end_date <= window,
+        )
+        .order_by(GymMembership.end_date.asc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": str(gm.id),
+                "member_id": str(m.id),
+                "member_name": m.full_name,
+                "member_email": m.email,
+                "member_phone": m.mobile_phone,
+                "plan_name": plan.name,
+                "end_date": gm.end_date.isoformat(),
+                "days_left": (gm.end_date - datetime.now(timezone.utc).date()).days,
+            }
+            for gm, m, plan in rows
+        ]
     }
 
 

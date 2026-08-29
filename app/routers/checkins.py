@@ -27,8 +27,8 @@ def list_checkins(
     )
     if search:
         query = query.filter(
-            GymMember.full_name.ilike(f"%{search}%")
-            | GymMember.member_code.ilike(f"%{search}%")
+            GymMember.full_name.ilike(f"{search}%")
+            | GymMember.member_code.ilike(f"{search}%")
         )
     if date_filter:
         query = query.filter(func.date(GymCheckIn.checked_in_at) == date_filter)

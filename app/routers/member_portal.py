@@ -145,8 +145,8 @@ def list_coaches_for_member(
     query = db.query(GymCoach)
     if search:
         query = query.filter(
-            GymCoach.full_name.ilike(f"%{search}%")
-            | GymCoach.specialization.ilike(f"%{search}%")
+            GymCoach.full_name.ilike(f"{search}%")
+            | GymCoach.specialization.ilike(f"{search}%")
         )
 
     total = query.count()
