@@ -49,6 +49,23 @@ export default function Layout({ children }) {
   const pendingPayments = pendingPaymentsData?.items || []
   const paymentCount = pendingCount?.count || 0
 
+  const { data: changeRequestCount } = useQuery({
+    queryKey: ['change-request-pending-count'],
+    queryFn: () => api.get('/gym_members/change-requests/pending-count').then((r) => r.data),
+    enabled: role === 'admin',
+    refetchInterval: 30000,
+  })
+  const changeRequestCr = changeRequestCount?.count || 0
+
+  const { data: pendingChangeRequestsData } = useQuery({
+    queryKey: ['change-request-notif-list'],
+    queryFn: () => api.get('/gym_members/change-requests/pending?per_page=10').then((r) => r.data),
+    enabled: role === 'admin' && notifOpen,
+  })
+  const pendingChangeRequests = pendingChangeRequestsData?.items || []
+
+  const notifTotal = paymentCount + changeRequestCr
+
   useEffect(() => {
     const handler = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
@@ -155,9 +172,9 @@ export default function Layout({ children }) {
                   className="relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
                 >
                   <i className="bi bi-bell text-lg" />
-                  {(paymentCount > 0 || expiring.length > 0) && (
+                  {(notifTotal > 0 || expiring.length > 0) && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                      {paymentCount > 0 ? paymentCount : expiring.length}
+                      {notifTotal > 0 ? notifTotal : expiring.length}
                     </span>
                   )}
                 </button>
@@ -170,6 +187,36 @@ export default function Layout({ children }) {
                       </button>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
+                      {changeRequestCr > 0 && (
+                        <div>
+                          <div className="px-4 py-2 bg-violet-50/60 flex items-center justify-between">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">Change Requests</p>
+                            <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-full">{changeRequestCr}</span>
+                          </div>
+                          {pendingChangeRequests.map((r) => (
+                            <button
+                              key={r.id}
+                              onClick={() => { setNotifOpen(false); navigate('/change-requests?tab=pending') }}
+                              className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                            >
+                              <div className="mt-0.5 w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-[10px] font-bold shrink-0">
+                                <i className="bi bi-pencil-square text-xs" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{r.member_name}</p>
+                                <p className="text-xs text-gray-500 capitalize">{r.field_name.replace(/_/g, ' ')} change</p>
+                                <p className="text-[10px] font-semibold text-violet-600 mt-0.5">{new Date(r.submitted_at).toLocaleDateString()}</p>
+                              </div>
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => { setNotifOpen(false); navigate('/change-requests?tab=pending') }}
+                            className="w-full text-center py-2 text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border-b border-gray-50 transition-colors"
+                          >
+                            View All Change Requests
+                          </button>
+                        </div>
+                      )}
                       {paymentCount > 0 && (
                         <div>
                           <div className="px-4 py-2 bg-amber-50/60 flex items-center justify-between">
@@ -200,7 +247,7 @@ export default function Layout({ children }) {
                           </button>
                         </div>
                       )}
-                      {expiring.length === 0 && paymentCount === 0 ? (
+                      {expiring.length === 0 && paymentCount === 0 && changeRequestCr === 0 ? (
                         <p className="px-4 py-6 text-sm text-gray-400 text-center">No notifications</p>
                       ) : expiring.length > 0 && (
                         <>

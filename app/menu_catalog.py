@@ -17,8 +17,9 @@ MENUS = [
     {"menu_id": "plans", "role": "admin", "label": "Membership Plans", "icon": "bi-card-list", "path": "/plans", "sort_order": 4},
     {"menu_id": "memberships", "role": "admin", "label": "Memberships", "icon": "bi-credit-card", "path": "/memberships", "sort_order": 5},
     {"menu_id": "payments", "role": "admin", "label": "Payments", "icon": "bi-cash-coin", "path": "/payments", "sort_order": 6},
-    {"menu_id": "activity_logs", "role": "admin", "label": "Activity Logs", "icon": "bi-clock-history", "path": "/activity-logs", "sort_order": 7},
-    {"menu_id": "settings", "role": "admin", "label": "Settings", "icon": "bi-gear", "path": "/settings", "sort_order": 8},
+    {"menu_id": "change_requests", "role": "admin", "label": "Change Requests", "icon": "bi-pencil-square", "path": "/change-requests", "sort_order": 7},
+    {"menu_id": "activity_logs", "role": "admin", "label": "Activity Logs", "icon": "bi-clock-history", "path": "/activity-logs", "sort_order": 8},
+    {"menu_id": "settings", "role": "admin", "label": "Settings", "icon": "bi-gear", "path": "/settings", "sort_order": 9},
     # Member
     {"menu_id": "dashboard", "role": "member", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/member/dashboard", "sort_order": 0},
     {"menu_id": "coaches", "role": "member", "label": "Coaches", "icon": "bi-person-badge", "path": "/member/coaches", "sort_order": 1},

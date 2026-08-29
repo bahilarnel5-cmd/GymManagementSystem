@@ -40,6 +40,9 @@ class MemberUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
     mobile_phone: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    profile_photo: Optional[str] = None
     assigned_coach_id: Optional[uuid.UUID] = None
     status: Optional[str] = None
 
@@ -194,6 +197,11 @@ class PaymentResponse(BaseModel):
 
 
 class PaymentSubmissionReview(BaseModel):
+    status: str
+    admin_notes: Optional[str] = None
+
+
+class MemberChangeRequestReview(BaseModel):
     status: str
     admin_notes: Optional[str] = None
 

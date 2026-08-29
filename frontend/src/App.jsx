@@ -11,6 +11,7 @@ import Coaches from './pages/Coaches'
 import Plans from './pages/Plans'
 import Memberships from './pages/Memberships'
 import Payments from './pages/Payments'
+import ChangeRequests from './pages/ChangeRequests'
 import Settings from './pages/Settings'
 import ActivityLogs from './pages/ActivityLogs'
 import CoachStudentsAdmin from './pages/CoachStudentsAdmin'
@@ -50,6 +51,7 @@ function AdminRoutes() {
         <Route path="/plans" element={<Plans />} />
         <Route path="/memberships" element={<Memberships />} />
         <Route path="/payments" element={<Payments />} />
+        <Route path="/change-requests" element={<ChangeRequests />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />

@@ -32,6 +32,30 @@ def storage_configured() -> bool:
     return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
 
+CHANGE_REQUEST_BUCKET = "change-request-proofs"
+
+
+def ensure_bucket(bucket: str = CHANGE_REQUEST_BUCKET) -> None:
+    """Idempotently create a storage bucket (public=False) if it is missing.
+
+    Safe to call on every boot with the service-role key; no-op when storage
+    is not configured (local dev)."""
+    sb = get_sb_client()
+    if sb is None:
+        return
+    try:
+        existing = sb.storage.list_buckets()
+        names = {b.get("name") if isinstance(b, dict) else getattr(b, "name", None)
+                 for b in existing}
+        if bucket not in names:
+            try:
+                sb.storage.create_bucket(bucket, {"public": False})
+            except Exception:
+                pass  # already created by a concurrent process
+    except Exception:
+        pass
+
+
 def upload_screenshot(file_bytes: bytes, content_type: str, bucket: str = "payment-proofs") -> str:
     """Upload proof bytes and return the storage object path."""
     sb = get_sb_client()

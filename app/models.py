@@ -28,6 +28,9 @@ class GymMember(Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     email: Mapped[str | None] = mapped_column(String(150), nullable=True)
     mobile_phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    emergency_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    profile_photo: Mapped[str | None] = mapped_column(String(300), nullable=True)
     assigned_coach_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coaches.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
@@ -278,6 +281,33 @@ class GymPaymentSubmission(Base):
     amount_paid: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     ref_last4: Mapped[str] = mapped_column(String(4), nullable=False)
     screenshot_path: Mapped[str] = mapped_column(String(300), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class GymMemberChangeRequest(Base):
+    """A member-submitted request to change a field on their own profile,
+    reviewed + actioned by an admin. Proof uploads live in the
+    'change-request-proofs' Supabase storage bucket."""
+    __tablename__ = "gym_member_change_requests"
+    __table_args__ = (
+        Index("ix_gym_member_change_requests_org_status", "organization_id", "status"),
+        Index("ix_gym_member_change_requests_member", "member_id"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=False)
+    field_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    current_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_value: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(String(50), nullable=False, default="other")
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    proof_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
