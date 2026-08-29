@@ -78,58 +78,6 @@ def create_coach(coach: CoachCreate, payload: dict = Depends(require_role("admin
     return {"id": str(new_coach.id), "full_name": new_coach.full_name}
 
 
-@router.get("/{coach_id}")
-def get_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
-    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Coach not found")
-    return {
-        "id": str(c.id),
-        "full_name": c.full_name,
-        "specialization": c.specialization,
-        "hourly_rate": float(c.hourly_rate),
-        "mobile_contact": c.mobile_contact,
-        "shift_schedule": c.shift_schedule,
-    }
-
-
-@router.put("/{coach_id}")
-def update_coach(coach_id: uuid.UUID, update: CoachUpdate, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
-    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Coach not found")
-    for field, value in update.model_dump(exclude_unset=True).items():
-        setattr(c, field, value)
-    c.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(c)
-    log_action(
-        db, c.organization_id, "update", "coach", entity_id=c.id,
-        description=f"Updated coach {c.full_name}",
-        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
-    )
-    db.commit()
-    return {"id": str(c.id), "full_name": c.full_name}
-
-
-@router.delete("/{coach_id}")
-def delete_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
-    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Coach not found")
-    coach_name = c.full_name
-    org_id = c.organization_id
-    db.delete(c)
-    db.commit()
-    log_action(
-        db, org_id, "delete", "coach", entity_id=coach_id,
-        description=f"Deleted coach {coach_name}",
-        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
-    )
-    db.commit()
-    return {"deleted": True}
-
-
 @router.get("/students-summary")
 def students_summary(payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
     """Coach-and-student table: students per coach + who has paid."""
@@ -181,3 +129,56 @@ def students_summary(payload: dict = Depends(require_role("admin")), db: Session
         "total_assigned_students": total_assigned,
         "unassigned_students": unassigned,
     }
+
+
+@router.get("/{coach_id}")
+def get_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coach not found")
+    return {
+        "id": str(c.id),
+        "full_name": c.full_name,
+        "specialization": c.specialization,
+        "hourly_rate": float(c.hourly_rate),
+        "mobile_contact": c.mobile_contact,
+        "shift_schedule": c.shift_schedule,
+    }
+
+
+@router.put("/{coach_id}")
+def update_coach(coach_id: uuid.UUID, update: CoachUpdate, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coach not found")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(c, field, value)
+    c.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(c)
+    log_action(
+        db, c.organization_id, "update", "coach", entity_id=c.id,
+        description=f"Updated coach {c.full_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
+    return {"id": str(c.id), "full_name": c.full_name}
+
+
+@router.delete("/{coach_id}")
+def delete_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coach not found")
+    coach_name = c.full_name
+    org_id = c.organization_id
+    db.delete(c)
+    db.commit()
+    log_action(
+        db, org_id, "delete", "coach", entity_id=coach_id,
+        description=f"Deleted coach {coach_name}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
+    return {"deleted": True}
+
