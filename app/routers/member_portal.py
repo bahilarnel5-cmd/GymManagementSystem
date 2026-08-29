@@ -10,11 +10,30 @@ from app.models import (
     GymPtSession, GymCoach, GymRenewalRequest, CoachSchedule, MemberBooking,
 )
 from app.auth import require_role
-from app.schemas import MemberBookingCreate
+from app.schemas import MemberBookingCreate, MemberUpdate
+from app.activity import log_action
 
 router = APIRouter(prefix="/member", tags=["member_portal"])
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def format_phone(raw):
+    """Normalize a PH mobile to '+63 XXX XXX XXXX'."""
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if digits.startswith("63"):
+        digits = digits[2:]
+    if digits.startswith("0"):
+        digits = digits[1:]
+    digits = digits[:10]
+    out = "+63"
+    if len(digits) > 0:
+        out += " " + digits[:3]
+    if len(digits) > 3:
+        out += " " + digits[3:6]
+    if len(digits) > 6:
+        out += " " + digits[6:10]
+    return out
 
 
 @router.get("/dashboard")
@@ -438,3 +457,66 @@ def list_my_renewals(payload: dict = Depends(require_role("member")), db: Sessio
         }
         for r in renewals
     ]
+
+
+@router.get("/profile")
+def get_my_profile(payload: dict = Depends(require_role("member")), db: Session = Depends(get_db)):
+    member_id = payload.get("member_id")
+    if not member_id:
+        raise HTTPException(status_code=400, detail="No member linked to this account")
+
+    mid = uuid.UUID(member_id)
+    member = db.query(GymMember).filter(GymMember.id == mid).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    return {
+        "id": str(member.id),
+        "member_code": member.member_code,
+        "full_name": member.full_name,
+        "email": member.email,
+        "mobile_phone": member.mobile_phone,
+        "assigned_coach_id": str(member.assigned_coach_id) if member.assigned_coach_id else None,
+        "status": member.status,
+    }
+
+
+@router.put("/profile")
+def update_my_profile(update: MemberUpdate, payload: dict = Depends(require_role("member")), db: Session = Depends(get_db)):
+    member_id = payload.get("member_id")
+    if not member_id:
+        raise HTTPException(status_code=400, detail="No member linked to this account")
+
+    mid = uuid.UUID(member_id)
+    member = db.query(GymMember).filter(GymMember.id == mid).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Members may only self-edit their own contact details; the code, assigned
+    # coach, and status remain admin-managed.
+    data = update.model_dump(exclude_unset=True)
+    if "mobile_phone" in data and data["mobile_phone"] is not None:
+        data["mobile_phone"] = format_phone(data["mobile_phone"])
+    for field in ("full_name", "email", "mobile_phone"):
+        if field in data and data[field] is not None:
+            setattr(member, field, data[field])
+    member.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(member)
+
+    log_action(
+        db, member.organization_id, "update", "member", entity_id=member.id,
+        description=f"Member {member.full_name} updated their own profile",
+        actor_user_id=payload.get("sub"), actor_name=member.full_name, actor_role="member",
+    )
+    db.commit()
+
+    return {
+        "id": str(member.id),
+        "member_code": member.member_code,
+        "full_name": member.full_name,
+        "email": member.email,
+        "mobile_phone": member.mobile_phone,
+        "assigned_coach_id": str(member.assigned_coach_id) if member.assigned_coach_id else None,
+        "status": member.status,
+    }

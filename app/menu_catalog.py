@@ -23,6 +23,7 @@ MENUS = [
     {"menu_id": "dashboard", "role": "member", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/member/dashboard", "sort_order": 0},
     {"menu_id": "coaches", "role": "member", "label": "Coaches", "icon": "bi-person-badge", "path": "/member/coaches", "sort_order": 1},
     {"menu_id": "renewals", "role": "member", "label": "Renewals", "icon": "bi-arrow-repeat", "path": "/member/renewals", "sort_order": 2},
+    {"menu_id": "profile", "role": "member", "label": "My Profile", "icon": "bi-person-circle", "path": "/member/profile", "sort_order": 3},
     # Coach
     {"menu_id": "dashboard", "role": "coach", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/coach/dashboard", "sort_order": 0},
     {"menu_id": "students", "role": "coach", "label": "My Students", "icon": "bi-people", "path": "/coach/students", "sort_order": 1},
@@ -34,16 +35,23 @@ ROLES = ["admin", "member", "coach"]
 
 
 def seed_role_menus(db, organization_id):
-    """Insert default menu rows for an org if none exist yet."""
-    existing = db.query(GymRoleMenu.id).filter(
+    """Insert default menu rows for an org if none exist yet.
+
+    Only rows that are missing (by role + menu_id) are added. Existing rows —
+    including any the admin has toggled off — are left untouched, so this is
+    safe to call repeatedly even after the org already has menus.
+    """
+    existing = db.query(GymRoleMenu).filter(
         GymRoleMenu.organization_id == organization_id
-    ).first()
-    if existing:
-        return
+    ).all()
+    existing_keys = {(r.role, r.menu_id) for r in existing}
 
     now = datetime.now(timezone.utc)
+    added = False
     for m in MENUS:
-        db.add(GymRoleMenu(
+        if (m["role"], m["menu_id"]) in existing_keys:
+            continue
+        row = GymRoleMenu(
             id=uuid.uuid4(),
             organization_id=organization_id,
             role=m["role"],
@@ -55,5 +63,8 @@ def seed_role_menus(db, organization_id):
             sort_order=m["sort_order"],
             created_at=now,
             updated_at=now,
-        ))
-    db.commit()
+        )
+        db.add(row)
+        added = True
+    if added:
+        db.commit()
