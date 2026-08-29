@@ -45,7 +45,7 @@ with SessionLocal() as db:
     for org in db.query(Organization).all():
         seed_role_menus(db, org.id)
 
-app = FastAPI(title="Gym Management API", version="2.1.0")
+app = FastAPI(title="Gym Management API", version="2.2.0")
 
 # Default to the deployed Vercel domain + local dev so the app works out of
 # the box even if the CORS_ORIGINS env var isn't set on the host.
@@ -67,7 +67,7 @@ for router in all_routers:
 
 @app.get("/")
 def read_root():
-    return {"message": "Gym Management API v2.1 is running"}
+    return {"message": "Gym Management API v2.2 is running"}
 
 
 @app.get("/health/db")
