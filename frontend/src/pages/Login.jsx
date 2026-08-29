@@ -30,6 +30,14 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3F4F6] px-6">
       <div className="w-full max-w-sm">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors mb-6"
+        >
+          <i className="bi bi-arrow-left" />
+          Back to Home
+        </Link>
+
         <Link to="/" className="flex items-center gap-2.5 justify-center mb-8">
           <div className="h-9 w-9 rounded-lg bg-[#0A1F44] flex items-center justify-center">
             <i className="bi bi-lightning-charge-fill text-white text-sm" />
