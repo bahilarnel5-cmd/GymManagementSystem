@@ -11,6 +11,18 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://gymmanagementsystemnew.vercel.app,http://localhost:5173"
       - key: PYTHON_VERSION
         value: "3.11.8"
+
+  # Keeps the free web service awake so the Vercel proxy and direct
+  # browser calls don't time out on cold starts (free tier sleeps after
+  # ~15 min idle).
+  - type: cron
+    name: gym-keepalive
+    runtime: python
+    plan: free
+    schedule: "*/10 * * * *"
+    buildCommand: ""
+    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://gymmanagementsystem-rkav.onrender.com/health/db', timeout=30)"
+    envVars: []

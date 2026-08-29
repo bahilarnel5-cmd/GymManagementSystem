@@ -12,7 +12,12 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Gym Management API", version="2.0.0")
 
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+# Default to the deployed Vercel domain + local dev so the app works out of
+# the box even if the CORS_ORIGINS env var isn't set on the host.
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "https://gymmanagementsystemnew.vercel.app,http://localhost:5173",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

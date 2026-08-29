@@ -64,23 +64,30 @@ curl -X POST http://localhost:8000/auth/register \
 4. Render will auto-detect `render.yaml` and configure:
    - **Build**: `pip install -r requirements.txt`
    - **Start**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Set environment variables in Render dashboard:
+   - **CORS_ORIGINS**: defaults to your Vercel domain + localhost
+5. Set environment variables in Render dashboard (or let `render.yaml` fill them):
    - `DATABASE_URL` — your Supabase connection string
-   - `CORS_ORIGINS` — `https://your-app.vercel.app`
+   - `CORS_ORIGINS` — `https://gymmanagementsystemnew.vercel.app,http://localhost:5173`
    - `SECRET_KEY` — any random string
 6. Run `alembic upgrade head` in Render's shell tab to create tables
-7. Your backend URL will be like `https://gym-management-api.onrender.com`
+7. Your backend URL is `https://gymmanagementsystem-rkav.onrender.com`
+
+> **Note:** The free tier sleeps after ~15 min of inactivity and cold-starts
+> slowly, which can time out the Vercel proxy. `render.yaml` includes a free
+> cron job (`gym-keepalive`, every 10 min) that pings `/health/db` to keep the
+> service warm. Deploy via Blueprint so the cron job is created.
 
 ### Frontend (Vercel)
 
 1. Go to [vercel.com](https://vercel.com) → New Project
 2. Import your GitHub repo
 3. Vercel auto-detects `vercel.json` config
-4. **Important**: After deploying the backend, update the URL in `vercel.json`:
-   ```json
-   { "source": "/api/(.*)", "destination": "https://YOUR-RENDER-URL.onrender.com/$1" }
-   ```
-5. Deploy — your frontend will be at `https://your-app.vercel.app`
+4. `vercel.json` rewrites `/api/*` to the Render backend:
+   - `https://gymmanagementsystemnew.vercel.app`
+   - backend: `https://gymmanagementsystem-rkav.onrender.com`
+5. **Recommended**: add the env var `VITE_API_URL` = `https://gymmanagementsystem-rkav.onrender.com`
+   so the browser calls the backend directly (avoids the Vercel proxy timeout).
+6. Deploy — your frontend is at `https://gymmanagementsystemnew.vercel.app`
 
 ### Create Login Accounts
 
