@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -6,6 +7,14 @@ import { useAuthStore } from '../lib/store'
 export default function Payments() {
   const queryClient = useQueryClient()
   const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab') || 'record'
+
+  const setTab = (t) => {
+    if (t === 'record') setParams({})
+    else setParams({ tab: t })
+  }
+
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showRecord, setShowRecord] = useState(false)
@@ -13,6 +22,7 @@ export default function Payments() {
   const { data, isLoading } = useQuery({
     queryKey: ['payments', page, search],
     queryFn: () => api.get(`/gym_payments/?page=${page}&per_page=10&search=${search}`).then((r) => r.data),
+    enabled: tab === 'record',
   })
 
   const voidMutation = useMutation({
@@ -20,69 +30,237 @@ export default function Payments() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['payments'] }),
   })
 
+  const tabs = [
+    { id: 'record', label: 'Record Payment', icon: 'bi-plus-circle' },
+    { id: 'requests', label: 'Payment Requests', icon: 'bi-inbox' },
+    { id: 'history', label: 'Payment History', icon: 'bi-clock-history' },
+  ]
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Payments</h1>
-        <button
-          onClick={() => setShowRecord(!showRecord)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showRecord ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}
-        >
-          <i className={`bi ${showRecord ? 'bi-x-lg' : 'bi-plus-lg'} text-xs`} />
-          {showRecord ? 'Close' : 'Record Payment'}
-        </button>
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === t.id ? 'bg-white shadow text-cyan-700' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <i className={`bi ${t.icon} text-xs`} />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {showRecord && <RecordPaymentForm orgId={orgId} queryClient={queryClient} onDone={() => setShowRecord(false)} />}
+      {tab === 'record' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <input
+              placeholder="Search by name or receipt no..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none"
+            />
+            <button
+              onClick={() => setShowRecord(!showRecord)}
+              className={`ml-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showRecord ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-cyan-600 text-white hover:bg-cyan-700'}`}
+            >
+              <i className={`bi ${showRecord ? 'bi-x-lg' : 'bi-plus-lg'} text-xs`} />
+              {showRecord ? 'Close' : 'Record Payment'}
+            </button>
+          </div>
 
-      <div className="mb-4">
-        <input placeholder="Search by name or receipt no..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gym-500 focus:border-transparent outline-none" />
+          {showRecord && <RecordPaymentForm orgId={orgId} queryClient={queryClient} onDone={() => setShowRecord(false)} />}
+
+          <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Receipt</th>
+                  <th className="text-left px-4 py-3 font-medium">Member</th>
+                  <th className="text-left px-4 py-3 font-medium">Description</th>
+                  <th className="text-left px-4 py-3 font-medium">Type</th>
+                  <th className="text-left px-4 py-3 font-medium">Amount</th>
+                  <th className="text-left px-4 py-3 font-medium">Method</th>
+                  <th className="text-left px-4 py-3 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 font-medium">Date</th>
+                  <th className="text-right px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {isLoading ? (
+                  <tr><td colSpan={9} className="text-center py-8 text-gray-400">Loading...</td></tr>
+                ) : data?.items?.length === 0 ? (
+                  <tr><td colSpan={9} className="text-center py-8 text-gray-400">No payments found</td></tr>
+                ) : (
+                  data?.items?.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-xs">{p.receipt_no}</td>
+                      <td className="px-4 py-3 font-medium">{p.member_name}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.item_description}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_category === 'coach' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'} capitalize`}>{p.payment_category || 'membership'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-gym-600">₱{p.amount.toLocaleString()}</span>
+                        {p.discount_amount > 0 && (
+                          <span className="block text-[10px] text-red-500">-₱{p.discount_amount.toLocaleString()} {p.discount_description ? `(${p.discount_description})` : 'discount'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{p.payment_method}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{new Date(p.paid_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-right">
+                        {p.status === 'paid' && (
+                          <button onClick={() => { if (confirm('Void this payment?')) voidMutation.mutate(p.id) }} className="text-red-500 hover:text-red-700 text-xs font-medium">Void</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden space-y-3">
+            {isLoading ? (
+              <p className="text-center py-8 text-gray-400">Loading...</p>
+            ) : data?.items?.length === 0 ? (
+              <p className="text-center py-8 text-gray-400">No payments found</p>
+            ) : (
+              data?.items?.map((p) => (
+                <div key={p.id} className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-gray-800">{p.member_name}</p>
+                      <p className="text-xs text-gray-500 font-mono">{p.receipt_no}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_category === 'coach' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'} capitalize`}>{p.payment_category || 'membership'}</span>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    <p>{p.item_description}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <div>
+                        <span className="font-semibold text-gym-600">₱{p.amount.toLocaleString()}</span>
+                        {p.discount_amount > 0 && <span className="block text-[10px] text-red-500">-₱{p.discount_amount.toLocaleString()}</span>}
+                      </div>
+                      <span className="text-xs">{p.payment_method} · {new Date(p.paid_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  {p.status === 'paid' && (
+                    <button onClick={() => { if (confirm('Void this payment?')) voidMutation.mutate(p.id) }} className="mt-3 text-red-500 hover:text-red-700 text-xs font-medium">Void</button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {data && data.pages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white rounded-xl shadow-sm">
+              <span className="text-sm text-gray-500">Page {data.page} of {data.pages} ({data.total} total)</span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
+                <button onClick={() => setPage(Math.min(data.pages, page + 1))} disabled={page === data.pages} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'requests' && <PaymentRequests queryClient={queryClient} />}
+
+      {tab === 'history' && <PaymentHistory />}
+    </div>
+  )
+}
+
+function PaymentRequests({ queryClient }) {
+  const [viewImage, setViewImage] = useState(null)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['payment-submissions-pending'],
+    queryFn: () => api.get('/gym_payments/pending?per_page=50').then((r) => r.data),
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, status, admin_notes }) =>
+      api.patch(`/gym_payments/${id}/review`, { status, admin_notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-submissions-pending'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-submissions-history'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-pending-count'] })
+    },
+  })
+
+  const handleReject = (item) => {
+    const notes = prompt('Reason for rejection:', '')
+    if (notes === null) return
+    reviewMutation.mutate({ id: item.id, status: 'rejected', admin_notes: notes })
+  }
+
+  const list = data?.items || []
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          <span className="font-semibold text-amber-600">{data?.total ?? 0}</span> pending {data?.total === 1 ? 'payment' : 'payments'} awaiting verification
+        </p>
       </div>
 
       <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="text-left px-4 py-3 font-medium">Receipt</th>
+              <th className="text-left px-4 py-3 font-medium">Proof</th>
               <th className="text-left px-4 py-3 font-medium">Member</th>
-              <th className="text-left px-4 py-3 font-medium">Description</th>
-              <th className="text-left px-4 py-3 font-medium">Type</th>
               <th className="text-left px-4 py-3 font-medium">Amount</th>
-              <th className="text-left px-4 py-3 font-medium">Method</th>
-              <th className="text-left px-4 py-3 font-medium">Status</th>
-              <th className="text-left px-4 py-3 font-medium">Date</th>
+              <th className="text-left px-4 py-3 font-medium">Ref (last 4)</th>
+              <th className="text-left px-4 py-3 font-medium">Submitted</th>
               <th className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400">Loading...</td></tr>
-            ) : data?.items?.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400">No payments found</td></tr>
+              <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>
+            ) : list.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">No pending payment requests</td></tr>
             ) : (
-              data?.items?.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{p.receipt_no}</td>
-                  <td className="px-4 py-3 font-medium">{p.member_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.item_description}</td>
+              list.map((s) => (
+                <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_category === 'coach' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'} capitalize`}>{p.payment_category || 'membership'}</span>
+                    <button
+                      onClick={() => setViewImage(s.screenshot_url)}
+                      className="w-14 h-14 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center"
+                    >
+                      <i className="bi bi-image text-gray-400 text-xl" />
+                    </button>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-gym-600">₱{p.amount.toLocaleString()}</span>
-                    {p.discount_amount > 0 && (
-                      <span className="block text-[10px] text-red-500">-₱{p.discount_amount.toLocaleString()} {p.discount_description ? `(${p.discount_description})` : 'discount'}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{p.payment_method}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{new Date(p.paid_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-right">
-                    {p.status === 'paid' && (
-                      <button onClick={() => { if (confirm('Void this payment?')) voidMutation.mutate(p.id) }} className="text-red-500 hover:text-red-700 text-xs font-medium">Void</button>
-                    )}
+                  <td className="px-4 py-3 font-medium">{s.member_name}</td>
+                  <td className="px-4 py-3 font-semibold text-gym-600">₱{s.amount_paid.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono text-xs">...{s.ref_last4}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{new Date(s.submitted_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => reviewMutation.mutate({ id: s.id, status: 'approved' })}
+                      disabled={reviewMutation.isPending}
+                      className="mr-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleReject(s)}
+                      disabled={reviewMutation.isPending}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
                   </td>
                 </tr>
               ))
@@ -94,45 +272,129 @@ export default function Payments() {
       <div className="md:hidden space-y-3">
         {isLoading ? (
           <p className="text-center py-8 text-gray-400">Loading...</p>
-        ) : data?.items?.length === 0 ? (
-          <p className="text-center py-8 text-gray-400">No payments found</p>
+        ) : list.length === 0 ? (
+          <p className="text-center py-10 text-gray-400">No pending payment requests</p>
         ) : (
-          data?.items?.map((p) => (
-            <div key={p.id} className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-gray-800">{p.member_name}</p>
-                  <p className="text-xs text-gray-500 font-mono">{p.receipt_no}</p>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_category === 'coach' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'} capitalize`}>{p.payment_category || 'membership'}</span>
-              </div>
-              <div className="mt-2 text-sm text-gray-600">
-                <p>{p.item_description}</p>
-                <div className="flex items-center justify-between mt-1">
+          list.map((s) => (
+            <div key={s.id} className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setViewImage(s.screenshot_url)} className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                    <i className="bi bi-image text-gray-400 text-xl" />
+                  </button>
                   <div>
-                    <span className="font-semibold text-gym-600">₱{p.amount.toLocaleString()}</span>
-                    {p.discount_amount > 0 && <span className="block text-[10px] text-red-500">-₱{p.discount_amount.toLocaleString()}</span>}
+                    <p className="font-medium text-gray-800">{s.member_name}</p>
+                    <p className="text-xs text-gray-500">...{s.ref_last4} · {new Date(s.submitted_at).toLocaleDateString()}</p>
                   </div>
-                  <span className="text-xs">{p.payment_method} · {new Date(p.paid_at).toLocaleDateString()}</span>
                 </div>
+                <span className="font-semibold text-gym-600">₱{s.amount_paid.toLocaleString()}</span>
               </div>
-              {p.status === 'paid' && (
-                <button onClick={() => { if (confirm('Void this payment?')) voidMutation.mutate(p.id) }} className="mt-3 text-red-500 hover:text-red-700 text-xs font-medium">Void</button>
-              )}
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => reviewMutation.mutate({ id: s.id, status: 'approved' })} disabled={reviewMutation.isPending} className="flex-1 py-2 rounded-lg text-xs font-medium bg-green-600 text-white disabled:opacity-50">Approve</button>
+                <button onClick={() => handleReject(s)} disabled={reviewMutation.isPending} className="flex-1 py-2 rounded-lg text-xs font-medium bg-red-100 text-red-600 disabled:opacity-50">Reject</button>
+              </div>
             </div>
           ))
         )}
       </div>
 
-      {data && data.pages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white rounded-xl shadow-sm">
-          <span className="text-sm text-gray-500">Page {data.page} of {data.pages} ({data.total} total)</span>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
-            <button onClick={() => setPage(Math.min(data.pages, page + 1))} disabled={page === data.pages} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+      {viewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6" onClick={() => setViewImage(null)}>
+          <div className="relative max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setViewImage(null)} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-600">
+              <i className="bi bi-x-lg text-sm" />
+            </button>
+            {viewImage ? (
+              <img src={viewImage} alt="Payment proof" className="max-h-[80vh] w-full object-contain rounded-2xl" />
+            ) : (
+              <div className="bg-white rounded-2xl p-16 text-center text-gray-400">Unable to preview proof</div>
+            )}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function PaymentHistory() {
+  const [status, setStatus] = useState('')
+  const { data, isLoading } = useQuery({
+    queryKey: ['payment-submissions-history', status],
+    queryFn: () => api.get(`/gym_payments/history?per_page=50${status ? `&status=${status}` : ''}`).then((r) => r.data),
+  })
+
+  const list = data?.items || []
+
+  return (
+    <div>
+      <div className="mb-4">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+        >
+          <option value="">All statuses</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium">Member</th>
+              <th className="text-left px-4 py-3 font-medium">Amount</th>
+              <th className="text-left px-4 py-3 font-medium">Ref</th>
+              <th className="text-left px-4 py-3 font-medium">Status</th>
+              <th className="text-left px-4 py-3 font-medium">Reviewed</th>
+              <th className="text-left px-4 py-3 font-medium">Reviewed By</th>
+              <th className="text-left px-4 py-3 font-medium">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {isLoading ? (
+              <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>
+            ) : list.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">No reviewed payments</td></tr>
+            ) : (
+              list.map((s) => (
+                <tr key={s.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{s.member_name}</td>
+                  <td className="px-4 py-3 font-semibold text-gym-600">₱{s.amount_paid.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono text-xs">...{s.ref_last4}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{s.reviewed_by || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{s.admin_notes || '—'}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <p className="text-center py-8 text-gray-400">Loading...</p>
+        ) : list.length === 0 ? (
+          <p className="text-center py-10 text-gray-400">No reviewed payments</p>
+        ) : (
+          list.map((s) => (
+            <div key={s.id} className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-gray-800">{s.member_name}</p>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.status}</span>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">₱{s.amount_paid.toLocaleString()} · ...{s.ref_last4}</p>
+              <p className="text-xs text-gray-500 mt-1">Reviewed {s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString() : ''}{s.reviewed_by ? ` by ${s.reviewed_by}` : ''}</p>
+              {s.admin_notes && <p className="text-xs text-red-500 mt-1">Note: {s.admin_notes}</p>}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }

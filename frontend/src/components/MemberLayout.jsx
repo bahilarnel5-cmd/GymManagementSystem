@@ -8,6 +8,7 @@ const memberIconColors = {
   '/member/coaches': 'from-violet-400 to-violet-600',
   '/member/renewals': 'from-emerald-400 to-emerald-600',
   '/member/profile': 'from-pink-400 to-rose-600',
+  '/member/gcash': 'from-cyan-400 to-blue-600',
 }
 
 export default function MemberLayout({ children }) {

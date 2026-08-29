@@ -34,6 +34,21 @@ export default function Layout({ children }) {
   })
   const expiring = expiringData?.items || []
 
+  const { data: pendingCount } = useQuery({
+    queryKey: ['payment-pending-count'],
+    queryFn: () => api.get('/gym_payments/pending-count').then((r) => r.data),
+    enabled: role === 'admin',
+    refetchInterval: 30000,
+  })
+
+  const { data: pendingPaymentsData } = useQuery({
+    queryKey: ['payment-notif-list'],
+    queryFn: () => api.get('/gym_payments/pending?per_page=10').then((r) => r.data),
+    enabled: role === 'admin' && notifOpen,
+  })
+  const pendingPayments = pendingPaymentsData?.items || []
+  const paymentCount = pendingCount?.count || 0
+
   useEffect(() => {
     const handler = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
@@ -140,9 +155,9 @@ export default function Layout({ children }) {
                   className="relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
                 >
                   <i className="bi bi-bell text-lg" />
-                  {expiring.length > 0 && (
+                  {(paymentCount > 0 || expiring.length > 0) && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                      {expiring.length}
+                      {paymentCount > 0 ? paymentCount : expiring.length}
                     </span>
                   )}
                 </button>
@@ -154,30 +169,65 @@ export default function Layout({ children }) {
                         View all
                       </button>
                     </div>
-                    {expiring.length === 0 ? (
-                      <p className="px-4 py-6 text-sm text-gray-400 text-center">No notifications</p>
-                    ) : (
-                      <div className="max-h-72 overflow-y-auto">
-                        {expiring.map((m) => (
+                    <div className="max-h-80 overflow-y-auto">
+                      {paymentCount > 0 && (
+                        <div>
+                          <div className="px-4 py-2 bg-amber-50/60 flex items-center justify-between">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Payment Requests</p>
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">{paymentCount}</span>
+                          </div>
+                          {pendingPayments.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => { setNotifOpen(false); navigate('/payments?tab=requests') }}
+                              className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                            >
+                              <div className="mt-0.5 w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-[10px] font-bold shrink-0">
+                                <i className="bi bi-wallet2 text-xs" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{s.member_name}</p>
+                                <p className="text-xs text-gray-500">₱{s.amount_paid.toLocaleString()} · ref ...{s.ref_last4}</p>
+                                <p className="text-[10px] font-semibold text-cyan-600 mt-0.5">{new Date(s.submitted_at).toLocaleDateString()}</p>
+                              </div>
+                            </button>
+                          ))}
                           <button
-                            key={m.id}
-                            onClick={() => { setNotifOpen(false); navigate('/memberships') }}
-                            className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                            onClick={() => { setNotifOpen(false); navigate('/payments?tab=requests') }}
+                            className="w-full text-center py-2 text-xs font-medium text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border-b border-gray-50 transition-colors"
                           >
-                            <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-[10px] font-bold shrink-0">
-                              {m.member_name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-800">{m.member_name}</p>
-                              <p className="text-xs text-gray-500">{m.plan_name} expires {m.end_date}</p>
-                              <p className="text-[10px] font-semibold text-amber-600 mt-0.5">
-                                {m.days_left === 0 ? 'Expires today' : `${m.days_left} day${m.days_left === 1 ? '' : 's'} left`}
-                              </p>
-                            </div>
+                            View All Payment Requests
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                      {expiring.length === 0 && paymentCount === 0 ? (
+                        <p className="px-4 py-6 text-sm text-gray-400 text-center">No notifications</p>
+                      ) : expiring.length > 0 && (
+                        <>
+                          <div className="px-4 py-2 bg-amber-50/60">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Expiring Memberships</p>
+                          </div>
+                          {expiring.map((m) => (
+                            <button
+                              key={m.id}
+                              onClick={() => { setNotifOpen(false); navigate('/memberships') }}
+                              className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                            >
+                              <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-[10px] font-bold shrink-0">
+                                {m.member_name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{m.member_name}</p>
+                                <p className="text-xs text-gray-500">{m.plan_name} expires {m.end_date}</p>
+                                <p className="text-[10px] font-semibold text-amber-600 mt-0.5">
+                                  {m.days_left === 0 ? 'Expires today' : `${m.days_left} day${m.days_left === 1 ? '' : 's'} left`}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

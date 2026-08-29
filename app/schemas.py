@@ -193,6 +193,11 @@ class PaymentResponse(BaseModel):
     paid_at: datetime
 
 
+class PaymentSubmissionReview(BaseModel):
+    status: str
+    admin_notes: Optional[str] = None
+
+
 # ---- PT Sessions ----
 
 class PtSessionCreate(BaseModel):
