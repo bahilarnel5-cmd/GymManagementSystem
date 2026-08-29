@@ -24,12 +24,19 @@ def list_members(
     query = db.query(GymMember)
 
     if search:
-        query = query.filter(
-            GymMember.full_name.ilike(f"{search}%")
-            | GymMember.member_code.ilike(f"{search}%")
-            | GymMember.email.ilike(f"{search}%")
-            | GymMember.mobile_phone.ilike(f"{search}%")
-        )
+        # Live "letter" search: alphabetic queries match names only (prefix),
+        # so typing "A" shows members whose name starts with "A".
+        name_match = GymMember.full_name.ilike(f"{search}%")
+        if any(ch.isdigit() or not ch.isalnum() for ch in search):
+            # Searching by code / email / phone (contains digits or symbols)
+            query = query.filter(
+                name_match
+                | GymMember.member_code.ilike(f"{search}%")
+                | GymMember.email.ilike(f"{search}%")
+                | GymMember.mobile_phone.ilike(f"{search}%")
+            )
+        else:
+            query = query.filter(name_match)
     if status:
         query = query.filter(GymMember.status == status)
 

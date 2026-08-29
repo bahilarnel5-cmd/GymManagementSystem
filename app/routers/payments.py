@@ -25,10 +25,15 @@ def list_payments(
         GymMember, GymPayment.member_id == GymMember.id
     )
     if search:
-        query = query.filter(
-            GymMember.full_name.ilike(f"{search}%")
-            | GymPayment.receipt_no.ilike(f"{search}%")
-        )
+        # Live "letter" search: alphabetic queries match names only (prefix)
+        name_match = GymMember.full_name.ilike(f"{search}%")
+        if any(ch.isdigit() or not ch.isalnum() for ch in search):
+            query = query.filter(
+                name_match
+                | GymPayment.receipt_no.ilike(f"{search}%")
+            )
+        else:
+            query = query.filter(name_match)
     if status:
         query = query.filter(GymPayment.status == status)
 

@@ -26,10 +26,15 @@ def list_checkins(
         GymMember, GymCheckIn.member_id == GymMember.id
     )
     if search:
-        query = query.filter(
-            GymMember.full_name.ilike(f"{search}%")
-            | GymMember.member_code.ilike(f"{search}%")
-        )
+        # Live "letter" search: alphabetic queries match names only (prefix)
+        name_match = GymMember.full_name.ilike(f"{search}%")
+        if any(ch.isdigit() or not ch.isalnum() for ch in search):
+            query = query.filter(
+                name_match
+                | GymMember.member_code.ilike(f"{search}%")
+            )
+        else:
+            query = query.filter(name_match)
     if date_filter:
         query = query.filter(func.date(GymCheckIn.checked_in_at) == date_filter)
 
