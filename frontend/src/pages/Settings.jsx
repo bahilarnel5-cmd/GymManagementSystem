@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -53,6 +53,35 @@ export default function Settings() {
 function MembersForm({ orgId, queryClient }) {
   const [form, setForm] = useState({ member_code: '', full_name: '', email: '', mobile_phone: '', status: 'active' })
 
+  const { data: membersData } = useQuery({
+    queryKey: ['members'],
+    queryFn: () => api.get('/gym_members/?per_page=200').then((r) => r.data),
+  })
+  const members = membersData?.items || []
+
+  const nextCode = useMemo(() => {
+    const used = new Set(members.map((m) => m.member_code))
+    let maxNum = -1
+    let format = 'AG-10001'
+    for (const code of members) {
+      const match = String(code || '').match(/^(\D*)(\d+)$/)
+      if (match) {
+        const num = parseInt(match[2], 10)
+        if (num > maxNum) {
+          maxNum = num
+          format = match[1] + String(match[2])
+        }
+      }
+    }
+    if (maxNum < 0) return ''
+    const prefix = format.replace(/\d+$/, '')
+    const numStr = String(format.match(/\d+$/)[0])
+    let next = (maxNum + 1).toString()
+    while (next.length < numStr.length) next = '0' + next
+    const candidate = prefix + next
+    return used.has(candidate) ? '' : candidate
+  }, [members])
+
   const createMutation = useMutation({
     mutationFn: (newMember) => api.post('/gym_members/', { ...newMember, organization_id: orgId }),
     onSuccess: () => {
@@ -62,6 +91,9 @@ function MembersForm({ orgId, queryClient }) {
   })
 
   const handleSubmit = (e) => { e.preventDefault(); createMutation.mutate(form) }
+
+  const handleCodeChange = (value) => setForm({ ...form, member_code: value.toUpperCase() })
+  const handlePhoneChange = (value) => setForm({ ...form, mobile_phone: formatMobilePhone(value) })
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -80,7 +112,22 @@ function MembersForm({ orgId, queryClient }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Member Code</label>
-            <input placeholder="e.g. M001" value={form.member_code} onChange={(e) => setForm({ ...form, member_code: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" required />
+            <input
+              placeholder="e.g. AG-10006"
+              value={form.member_code}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+              required
+            />
+            {nextCode && (
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, member_code: nextCode })}
+                className="mt-1.5 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+              >
+                <i className="bi bi-magic mr-1" />Next in sequence: {nextCode}
+              </button>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
@@ -92,7 +139,13 @@ function MembersForm({ orgId, queryClient }) {
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Mobile Phone</label>
-            <input placeholder="09171234567" value={form.mobile_phone} onChange={(e) => setForm({ ...form, mobile_phone: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" required />
+            <input
+              placeholder="+63 969 022 6049"
+              value={form.mobile_phone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+              required
+            />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
@@ -115,6 +168,18 @@ function MembersForm({ orgId, queryClient }) {
       </form>
     </div>
   )
+}
+
+function formatMobilePhone(input) {
+  let digits = String(input || '').replace(/\D/g, '')
+  if (digits.startsWith('63')) digits = digits.slice(2)
+  if (digits.startsWith('0')) digits = digits.slice(1)
+  digits = digits.slice(0, 10)
+  let out = '+63'
+  if (digits.length > 0) out += ' ' + digits.slice(0, 3)
+  if (digits.length > 3) out += ' ' + digits.slice(3, 6)
+  if (digits.length > 6) out += ' ' + digits.slice(6, 10)
+  return out
 }
 
 function CoachesManager({ orgId, queryClient }) {
