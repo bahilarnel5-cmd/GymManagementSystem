@@ -50,6 +50,7 @@ export default function Coaches() {
 function CoachesGrid() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [expandedId, setExpandedId] = useState(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['coaches', page, search],
@@ -85,55 +86,49 @@ function CoachesGrid() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {data?.items?.map((c, idx) => {
             const color = coachColors[idx % coachColors.length]
+            const expanded = expandedId === c.id
             return (
-              <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
-                <div className={`${color.bg} p-5 pb-8 relative`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
-                      {getInitials(c.full_name)}
-                    </div>
-                    <div className="text-white">
-                      <h3 className="font-bold text-sm">{c.full_name}</h3>
-                      <p className="text-white/70 text-xs">{c.specialization}</p>
+              <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group h-fit">
+                <button
+                  onClick={() => setExpandedId(expanded ? null : c.id)}
+                  className="w-full text-left cursor-pointer"
+                  aria-expanded={expanded}
+                >
+                  <div className={`${color.bg} p-5 pb-8 relative transition-colors ${expanded ? '' : 'group-hover:brightness-95'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
+                        {getInitials(c.full_name)}
+                      </div>
+                      <div className="text-white flex-1 min-w-0">
+                        <h3 className="font-bold text-sm">{c.full_name}</h3>
+                        <p className="text-white/70 text-xs">{c.specialization}</p>
+                      </div>
+                      <i className={`bi bi-chevron-down text-white/80 text-lg transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
-                </div>
 
-                <div className="relative px-5 pb-5 -mt-3">
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-gym-50 flex items-center justify-center">
-                        <i className="bi bi-cash-stack text-gym-600 text-xs" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
-                        <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/day</p>
+                  <div className="relative px-5 pb-5 -mt-3">
+                    <div className="bg-white rounded-xl border border-gray-100 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-gym-50 flex items-center justify-center">
+                            <i className="bi bi-cash-stack text-gym-600 text-xs" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
+                            <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/day</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <i className={`bi bi-chevron-down text-[10px] transition-transform duration-200 inline-block ${expanded ? 'rotate-180' : ''}`} />
+                          {expanded ? 'Hide details' : 'View details'}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <i className="bi bi-telephone text-blue-600 text-xs" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Contact</p>
-                        <p className="text-sm font-medium text-gray-700">{c.mobile_contact}</p>
-                      </div>
-                    </div>
-
-                    {c.shift_schedule && (
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                          <i className="bi bi-clock text-amber-600 text-xs" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Schedule</p>
-                          <p className="text-sm font-medium text-gray-700">{c.shift_schedule}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                </div>
+                </button>
+
+                {expanded && <CoachDetails coachId={c.id} color={color} />}
               </div>
             )
           })}
@@ -149,6 +144,103 @@ function CoachesGrid() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function CoachDetails({ coachId, color }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['coach-details', coachId],
+    queryFn: () => api.get(`/gym_coaches/${coachId}`).then((r) => r.data),
+    staleTime: 30_000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="px-5 pb-4">
+        <div className="flex items-center justify-center py-6 bg-gray-50 rounded-xl border border-gray-100">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gym-600" />
+        </div>
+      </div>
+    )
+  }
+
+  const schedule = data?.weekly_schedule || {}
+
+  const infoRow = ({ icon, iconBg, iconColor, label, value }) => (
+    <div className="flex items-center gap-2.5">
+      <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
+        <i className={`bi ${icon} ${iconColor} text-xs`} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
+        <p className="text-sm font-medium text-gray-700 break-words">{value}</p>
+      </div>
+    </div>
+  )
+
+  const enrollmentStatusBadge = (s) => {
+    const map = {
+      active: 'bg-emerald-100 text-emerald-700',
+      pending_payment: 'bg-blue-100 text-blue-700',
+      cancelled: 'bg-red-100 text-red-700',
+    }
+    return map[s] || 'bg-gray-100 text-gray-700'
+  }
+
+  return (
+    <div className="px-5 pb-5 -mt-1">
+      <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+        <div className="space-y-3">
+          {infoRow({ icon: 'bi-cash-stack', iconBg: 'bg-gym-50', iconColor: 'text-gym-600', label: 'Rate', value: `₱${(data.hourly_rate ?? 0).toLocaleString()}/day` })}
+          {infoRow({ icon: 'bi-telephone', iconBg: 'bg-blue-50', iconColor: 'text-blue-600', label: 'Phone', value: data.mobile_contact })}
+          {data.email && infoRow({ icon: 'bi-envelope', iconBg: 'bg-sky-50', iconColor: 'text-sky-600', label: 'Email', value: data.email })}
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i className="bi bi-calendar-week text-amber-500" /> Weekly Schedule
+          </h4>
+          {Object.keys(schedule).length === 0 ? (
+            <p className="text-sm text-gray-400">No weekly schedule set.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(schedule).map(([day, shifts]) => (
+                <span key={day} className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium">
+                  {day}
+                  {shifts.length > 0 && ` · ${[...new Set(shifts)].join(', ')}`}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i className="bi bi-people text-violet-500" /> Enrolled Members
+            {data.enrolled_members?.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold">{data.enrolled_members.length}</span>
+            )}
+          </h4>
+          {!data.enrolled_members || data.enrolled_members.length === 0 ? (
+            <p className="text-sm text-gray-400">No members enrolled under this coach yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.enrolled_members.map((e) => (
+                <li key={e.member_id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{e.member_name}</p>
+                    <p className="text-xs text-gray-400">{e.selected_day_names?.join(', ') || '—'}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap ${enrollmentStatusBadge(e.enrollment_status)}`}>
+                    {String(e.enrollment_status).replace('_', ' ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

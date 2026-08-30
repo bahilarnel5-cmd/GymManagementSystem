@@ -74,6 +74,7 @@ class CoachCreate(BaseModel):
     specialization: str
     hourly_rate: float
     mobile_contact: str
+    email: Optional[str] = None
     shift_schedule: Optional[str] = None
 
 
@@ -82,6 +83,7 @@ class CoachUpdate(BaseModel):
     specialization: Optional[str] = None
     hourly_rate: Optional[float] = None
     mobile_contact: Optional[str] = None
+    email: Optional[str] = None
     shift_schedule: Optional[str] = None
 
 
@@ -93,6 +95,7 @@ class CoachResponse(BaseModel):
     specialization: str
     hourly_rate: float
     mobile_contact: str
+    email: Optional[str]
     shift_schedule: Optional[str]
     created_at: datetime
     updated_at: datetime

@@ -47,6 +47,7 @@ class GymCoach(Base):
     specialization: Mapped[str] = mapped_column(String(150), nullable=False)
     hourly_rate: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     mobile_contact: Mapped[str] = mapped_column(String(30), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(150), nullable=True)
     shift_schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

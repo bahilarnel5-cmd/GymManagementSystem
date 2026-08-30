@@ -5,13 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GymCoach, GymMember
+from app.models import GymCoach, GymMember, GymCoachEnrollment, CoachSchedule
 from app.auth import require_role
 from app.schemas import CoachCreate, CoachUpdate
 from app.activity import log_action
 from .coach_portal import _student_paid_info
 
 router = APIRouter(prefix="/gym_coaches", tags=["coaches"])
+
+DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 @router.get("/")
@@ -41,6 +43,7 @@ def list_coaches(
                 "specialization": c.specialization,
                 "hourly_rate": float(c.hourly_rate),
                 "mobile_contact": c.mobile_contact,
+                "email": c.email,
                 "shift_schedule": c.shift_schedule,
                 "created_at": c.created_at.isoformat(),
             }
@@ -62,6 +65,7 @@ def create_coach(coach: CoachCreate, payload: dict = Depends(require_role("admin
         specialization=coach.specialization,
         hourly_rate=coach.hourly_rate,
         mobile_contact=coach.mobile_contact,
+        email=coach.email,
         shift_schedule=coach.shift_schedule,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -136,13 +140,47 @@ def get_coach(coach_id: uuid.UUID, payload: dict = Depends(require_role("admin")
     c = db.query(GymCoach).filter(GymCoach.id == coach_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Coach not found")
+
+    schedules = db.query(CoachSchedule).filter(
+        CoachSchedule.coach_id == c.id,
+        CoachSchedule.is_active == True,
+    ).all()
+    weekly_schedule = {}
+    for s in schedules:
+        day = DAY_NAMES[s.day_of_week]
+        weekly_schedule.setdefault(day, []).append(s.shift_type)
+
+    enrollments = db.query(GymCoachEnrollment).filter(
+        GymCoachEnrollment.coach_id == c.id,
+    ).order_by(GymCoachEnrollment.enrolled_at.desc()).all()
+
+    enrolled_members = []
+    member_ids = {e.member_id for e in enrollments}
+    members = {
+        m.id: m for m in db.query(GymMember).filter(GymMember.id.in_(member_ids)).all()
+    } if member_ids else {}
+
+    for e in enrollments:
+        m = members.get(e.member_id)
+        enrolled_members.append({
+            "member_id": str(e.member_id),
+            "member_name": m.full_name if m else "Unknown",
+            "selected_day_names": [DAY_NAMES[d] for d in (e.selected_days or []) if 0 <= d < 7],
+            "enrollment_status": e.enrollment_status,
+            "payment_status": e.payment_status,
+            "payment_method": e.payment_method,
+        })
+
     return {
         "id": str(c.id),
         "full_name": c.full_name,
         "specialization": c.specialization,
         "hourly_rate": float(c.hourly_rate),
         "mobile_contact": c.mobile_contact,
+        "email": c.email,
         "shift_schedule": c.shift_schedule,
+        "weekly_schedule": weekly_schedule,
+        "enrolled_members": enrolled_members,
     }
 
 
