@@ -3,19 +3,29 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import GcashPaymentForm from '../components/GcashPaymentForm'
 
-const coachColors = [
-  { bg: 'bg-violet-500', ring: 'ring-violet-200' },
-  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
-  { bg: 'bg-emerald-500', ring: 'ring-emerald-200' },
-  { bg: 'bg-amber-500', ring: 'ring-amber-200' },
-  { bg: 'bg-rose-500', ring: 'ring-rose-200' },
-]
-
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+const methodLabel = (m) => ({ full_payment: 'Full Payment', down_payment: 'Down Payment', cash: 'Cash' }[m] || String(m || '').replace(/_/g, ' '))
+
+const enrollBadge = (s) => {
+  const map = {
+    active: 'bg-emerald-100 text-emerald-700',
+    pending_payment: 'bg-blue-100 text-blue-700',
+    cancelled: 'bg-red-100 text-red-700',
+  }
+  return map[s] || 'bg-gray-100 text-gray-700'
+}
+
+const mostRecentLabel = (s) => {
+  const t = String(s || '').replace(/_/g, ' ')
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '—'
+}
 
 export default function MemberCoaches() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null) // { coach, days:[], step, method, enrollment, paidMsg }
+  const [openGroups, setOpenGroups] = useState(() => new Set())
+  const [openCoaches, setOpenCoaches] = useState(() => new Set())
   const queryClient = useQueryClient()
 
   const { data: myEnrollments } = useQuery({
@@ -41,6 +51,35 @@ export default function MemberCoaches() {
 
   const myList = myEnrollments?.items || []
 
+  // One summary row per coach — each group is this member's history with that
+  // coach, already sorted most-recent-first by the API.
+  const groups = []
+  const byCoach = new Map()
+  for (const en of myList) {
+    const key = en.coach_id || en.coach_name
+    if (!byCoach.has(key)) byCoach.set(key, [])
+    byCoach.get(key).push(en)
+  }
+  for (const list of byCoach.values()) groups.push(list)
+
+  const toggleGroup = (key) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleCoach = (id) => {
+    setOpenCoaches((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -65,38 +104,84 @@ export default function MemberCoaches() {
         </div>
       </div>
 
-      {myList.length > 0 && (
-        <div className="mb-6">
+      {groups.length > 0 && (
+        <div className="mb-8">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">My Enrollments</h2>
-          <div className="space-y-2.5">
-            {myList.map((en) => (
-              <div key={en.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-wrap items-center gap-3">
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">{en.coach_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{en.selected_day_names?.join(', ')} · {String(en.payment_method).replace('_', ' ')}</p>
-                </div>
-                <span className={`ml-auto px-2.5 py-1 rounded-full text-xs font-medium ${
-                  en.enrollment_status === 'active' ? 'bg-emerald-100 text-emerald-700'
-                  : en.enrollment_status === 'pending_payment' ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {String(en.enrollment_status).replace('_', ' ')}
-                </span>
-                <span className="text-sm font-semibold text-gym-600">₱{en.amount_paid.toLocaleString()}<span className="text-gray-400 text-xs font-normal"> / ₱{en.total_amount.toLocaleString()}</span></span>
-                {en.enrollment_status === 'pending_payment' && (
-                  <button
-                    onClick={() => { if (confirm('Cancel this pending enrollment?')) cancelMutation.mutate(en.id) }}
-                    disabled={cancelMutation.isPending}
-                    className="text-xs font-medium text-red-500 hover:text-red-700"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {groups.map((enrollments) => {
+                const key = enrollments[0].coach_id || enrollments[0].coach_name
+                const coach = enrollments[0]
+                const open = openGroups.has(key)
+                return (
+                  <div key={key}>
+                    <button
+                      onClick={() => toggleGroup(key)}
+                      className="w-full text-left cursor-pointer group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                      aria-expanded={open}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center font-bold text-sm shrink-0">
+                        {getInitials(coach.coach_name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm text-gray-800 truncate">{coach.coach_name}</p>
+                        <p className="text-xs text-gray-400">
+                          {enrollments.length} enrollment{enrollments.length === 1 ? '' : 's'} — most recent: {mostRecentLabel(coach.enrollment_status)}
+                        </p>
+                      </div>
+                      <div className="w-6 flex justify-end">
+                        <i className={`bi bi-chevron-down text-gray-400 text-sm transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+
+                    {open && (
+                      <div className="px-5 pb-5">
+                        <div className="bg-gray-50 rounded-lg border border-gray-100 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="text-gray-500 text-[11px] uppercase tracking-wider">
+                              <tr className="border-b border-gray-200">
+                                <th className="px-4 py-2.5 text-left font-semibold">Day</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Payment Method</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {enrollments.map((en) => (
+                                <tr key={en.id}>
+                                  <td className="px-4 py-3 text-gray-600">{en.selected_day_names?.join(', ') || '—'}</td>
+                                  <td className="px-4 py-3 text-gray-600">{methodLabel(en.payment_method)}</td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap ${enrollBadge(en.enrollment_status)}`}>
+                                        {String(en.enrollment_status).replace(/_/g, ' ')}
+                                      </span>
+                                      {en.enrollment_status === 'pending_payment' && (
+                                        <button
+                                          onClick={() => { if (confirm('Cancel this pending enrollment?')) cancelMutation.mutate(en.id) }}
+                                          disabled={cancelMutation.isPending}
+                                          className="text-xs font-medium text-red-500 hover:text-red-700 whitespace-nowrap"
+                                        >
+                                          Cancel
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
+
+      <h2 className="text-sm font-semibold text-gray-700 mb-3">All Coaches</h2>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -108,67 +193,75 @@ export default function MemberCoaches() {
           <p className="text-gray-400">No coaches found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {data?.items?.map((c, idx) => {
-            const color = coachColors[idx % coachColors.length]
-            return (
-              <button
-                key={c.id}
-                onClick={() => openCoach(c)}
-                className="bg-white rounded-2xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-violet-200 transition-all duration-200 overflow-hidden group text-left cursor-pointer"
-              >
-                <div className={`${color.bg} p-5 pb-8 relative`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
-                      {getInitials(c.full_name)}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="divide-y divide-gray-100">
+            {data?.items?.map((c) => {
+              const open = openCoaches.has(c.id)
+              return (
+                <div key={c.id}>
+                  <button
+                    onClick={() => toggleCoach(c.id)}
+                    className="w-full text-left cursor-pointer group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                    aria-expanded={open}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center font-bold text-sm shrink-0">
+                        {getInitials(c.full_name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-gray-800 truncate">{c.full_name}</p>
+                        <p className="text-xs text-gray-400 md:hidden">{c.specialization}</p>
+                      </div>
                     </div>
-                    <div className="text-white">
-                      <h3 className="font-bold text-sm">{c.full_name}</h3>
-                      <p className="text-white/70 text-xs">{c.specialization}</p>
+                    <div className="hidden md:block w-1/3 text-sm text-gray-500 truncate">{c.specialization}</div>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="text-sm font-semibold text-gray-800">₱{c.hourly_rate.toLocaleString()}/day</span>
+                      <i className={`bi bi-chevron-down text-gray-400 text-sm transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
                     </div>
-                  </div>
+                  </button>
+
+                  {open && (
+                    <div className="px-5 pb-5">
+                      <div className="bg-gray-50 rounded-lg border border-gray-100 p-4 space-y-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <i className="bi bi-telephone text-gray-500 text-xs" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Contact</p>
+                            <p className="text-sm font-medium text-gray-700 break-words">{c.mobile_contact}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <i className="bi bi-calendar-week text-gray-500 text-xs" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Available Days</p>
+                            <p className="text-sm font-medium text-gray-700">
+                              {Object.keys(c.weekly_schedule || {}).length > 0
+                                ? Object.keys(c.weekly_schedule || {}).join(', ')
+                                : 'No set schedule'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-3">
+                          <button
+                            onClick={() => openCoach(c)}
+                            className="w-full py-2.5 rounded-xl text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                          >
+                            Enroll
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                <div className="relative px-5 pb-5 -mt-3">
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
-                        <i className="bi bi-cash-stack text-violet-600 text-xs" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
-                        <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/day</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <i className="bi bi-telephone text-blue-600 text-xs" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Contact</p>
-                        <p className="text-sm font-medium text-gray-700">{c.mobile_contact}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                        <i className="bi bi-calendar-week text-amber-600 text-xs" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Available Days</p>
-                        <p className="text-sm font-medium text-gray-700">
-                          {Object.keys(c.weekly_schedule || {}).length > 0
-                            ? Object.keys(c.weekly_schedule || {}).join(', ')
-                            : 'No set schedule'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 
