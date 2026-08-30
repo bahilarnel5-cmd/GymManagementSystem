@@ -12,6 +12,11 @@ class RegisterRequest(BaseModel):
     member_id: uuid.UUID
 
 
+class UserAccountUpdate(BaseModel):
+    email: EmailStr
+    password: Optional[str] = None
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str

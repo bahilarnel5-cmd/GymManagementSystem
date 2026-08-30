@@ -6,10 +6,36 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.models import GymUser, GymMember
-from app.auth import hash_password, verify_password, create_access_token, decode_token
-from app.schemas import RegisterRequest, LoginRequest, TokenResponse
+from app.auth import hash_password, verify_password, create_access_token, decode_token, require_role
+from app.schemas import RegisterRequest, LoginRequest, TokenResponse, UserAccountUpdate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.patch("/users/{user_id}")
+def update_user_account(
+    user_id: uuid.UUID,
+    payload: UserAccountUpdate,
+    auth_payload: dict = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    user = db.query(GymUser).filter(GymUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found")
+    if payload.email and payload.email.lower() != user.email.lower():
+        existing = db.query(GymUser).filter(
+            GymUser.organization_id == user.organization_id,
+            GymUser.email == payload.email,
+            GymUser.id != user.id,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user.email = payload.email
+    if payload.password:
+        user.hashed_password = hash_password(payload.password)
+    db.commit()
+    db.refresh(user)
+    return {"id": str(user.id), "email": user.email}
 
 @router.post("/register", response_model=dict)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
