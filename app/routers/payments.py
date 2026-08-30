@@ -170,6 +170,7 @@ async def submit_payment(
     file: UploadFile = File(...),
     enrollment_id: str = Form(""),
     renewal_id: str = Form(""),
+    membership_id: str = Form(""),
     payload: dict = Depends(require_role("admin", "member")),
     db: Session = Depends(get_db),
 ):
@@ -251,7 +252,29 @@ async def submit_payment(
         if abs(amount_paid - float(renewal.amount)) > 0.005:
             raise HTTPException(
                 status_code=422,
-                detail=f"Renewal payment requires exactly the plan price (₱{float(renewal.amount):,.2f})",
+                detail=f"Renewal payment requires exactly the final amount (₱{float(renewal.amount):,.2f})",
+            )
+
+    # Optional membership linkage (member availing a plan): validate the amount
+    # against the exact final (discounted) amount the plan was quoted at.
+    linked_membership = None
+    if renewal:
+        linked_membership = db.query(GymMembership).filter(GymMembership.id == renewal.membership_id).first()
+    elif membership_id:
+        from app.models import GymMembership
+        try:
+            lid = uuid.UUID(membership_id)
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid membership_id")
+        linked_membership = db.query(GymMembership).filter(GymMembership.id == lid).first()
+        if not linked_membership:
+            raise HTTPException(status_code=404, detail="Membership not found")
+        if str(linked_membership.member_id) != str(mid):
+            raise HTTPException(status_code=403, detail="Membership does not belong to this member")
+        if abs(amount_paid - float(linked_membership.amount_due)) > 0.005:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Payment requires exactly the final amount (₱{float(linked_membership.amount_due):,.2f})",
             )
 
     file_bytes = await file.read()
@@ -275,7 +298,7 @@ async def submit_payment(
         id=uuid.uuid4(),
         organization_id=member.organization_id,
         member_id=mid,
-        membership_id=renewal.membership_id if renewal else (latest_membership.id if latest_membership else None),
+        membership_id=linked_membership.id if linked_membership else (latest_membership.id if latest_membership else None),
         renewal_id=renewal.id if renewal else None,
         enrollment_id=enrollment.id if enrollment else None,
         amount_paid=amount_paid,
@@ -394,13 +417,18 @@ def review_submission(
         if sub.enrollment_id:
             _apply_enrollment_payment(db, sub)
         else:
-            _mark_membership_paid(db, sub)
+            renewal = None
             if sub.renewal_id:
                 from app.models import GymRenewalRequest
                 renewal = db.query(GymRenewalRequest).filter(GymRenewalRequest.id == sub.renewal_id).first()
-                if renewal:
-                    renewal.status = "completed"
-                    renewal.updated_at = datetime.now(timezone.utc)
+            _mark_membership_paid(
+                db, sub,
+                billing_cycle=renewal.billing_cycle if renewal else None,
+                discount_amount=float(renewal.discount_applied or 0) if renewal else None,
+            )
+            if renewal:
+                renewal.status = "completed"
+                renewal.updated_at = datetime.now(timezone.utc)
 
     sub.status = body.status
     sub.admin_notes = body.admin_notes or None
@@ -422,9 +450,12 @@ def review_submission(
     return _submission_row(sub, db)
 
 
-def _mark_membership_paid(db, sub):
-    """Reuse the renewals 'complete' behaviour: record a paid GymPayment row and
-    extend the linked membership (creating one if the member has none)."""
+def _mark_membership_paid(db, sub, billing_cycle=None, discount_amount=None):
+    """Record a paid GymPayment row and extend the linked membership (creating
+    one if the member has none). Uses the chosen billing cycle for the duration;
+    discounts are carried onto the membership and payment for accurate history."""
+    from app.pricing import billing_cycle_duration_days, normalize_billing_cycle
+
     membership = None
     if sub.membership_id:
         membership = db.query(GymMembership).filter(GymMembership.id == sub.membership_id).first()
@@ -437,14 +468,26 @@ def _mark_membership_paid(db, sub):
         )
     member = db.query(GymMember).filter(GymMember.id == sub.member_id).first()
 
-    extend_days = 30
-    if membership:
+    cycle = normalize_billing_cycle(billing_cycle)
+    if not cycle and membership and membership.billing_cycle:
+        cycle = normalize_billing_cycle(membership.billing_cycle)
+    if not cycle and membership:
         plan = db.query(GymMembershipPlan).filter(GymMembershipPlan.id == membership.plan_id).first()
         if plan:
-            cycle = (plan.billing_cycle or "").lower()
-            extend_days = {"weekly": 7, "monthly": 30, "yearly": 365}.get(cycle, 30)
-        membership.end_date = membership.end_date + timedelta(days=extend_days)
+            cycle = normalize_billing_cycle(plan.billing_cycle)
+    extend_days = billing_cycle_duration_days(cycle)
+
+    if membership:
+        fresh = membership.status == "pending_payment" or float(membership.amount_paid or 0) <= 0
+        if fresh:
+            membership.end_date = datetime.now(timezone.utc).date() + timedelta(days=extend_days)
+        else:
+            membership.end_date = membership.end_date + timedelta(days=extend_days)
         membership.status = "active"
+        membership.billing_cycle = cycle
+        if discount_amount is not None:
+            membership.discount_applied = discount_amount
+            membership.final_amount = float(sub.amount_paid)
         membership.updated_at = datetime.now(timezone.utc)
     else:
         first_plan = db.query(GymMembershipPlan).order_by(GymMembershipPlan.price.asc()).first()
@@ -455,7 +498,10 @@ def _mark_membership_paid(db, sub):
             plan_id=first_plan.id if first_plan else None,
             status="active",
             payment_type="full",
+            billing_cycle=cycle,
             amount_due=float(sub.amount_paid),
+            discount_applied=discount_amount if discount_amount is not None else 0,
+            final_amount=float(sub.amount_paid),
             amount_paid=float(sub.amount_paid),
             start_date=datetime.now(timezone.utc).date(),
             end_date=datetime.now(timezone.utc).date() + timedelta(days=extend_days),
@@ -464,6 +510,9 @@ def _mark_membership_paid(db, sub):
         )
         db.add(membership)
         sub.membership_id = membership.id
+
+    earned_discount = discount_amount if discount_amount is not None else float(membership.discount_applied or 0)
+    discount_desc = "Annual billing discount" if (earned_discount and cycle == "annual") else None
 
     receipt_no = f"OR-{uuid.uuid4().hex[:6].upper()}"
     new_payment = GymPayment(
@@ -475,7 +524,8 @@ def _mark_membership_paid(db, sub):
         item_description=f"GCash payment (ref ...{sub.ref_last4})",
         amount=float(sub.amount_paid),
         payment_category="membership",
-        discount_amount=0,
+        discount_amount=earned_discount,
+        discount_description=discount_desc,
         payment_method="gcash",
         reference_no=sub.ref_last4,
         status="paid",

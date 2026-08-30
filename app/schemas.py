@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ---- Auth ----
@@ -288,6 +288,10 @@ class SettingsUpdate(BaseModel):
     auto_sms_reminder_days: Optional[int] = None
 
 
+class AnnualDiscountUpdate(BaseModel):
+    annual_discount_percentage: float = Field(...)
+
+
 class SettingsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -311,6 +315,7 @@ class RenewalRequestCreate(BaseModel):
     membership_id: uuid.UUID
     requested_date: datetime
     payment_type: str = "full"
+    billing_cycle: str = "monthly"
     amount: float
 
 
@@ -336,7 +341,8 @@ class AvailPlanIn(BaseModel):
     member_id: uuid.UUID
     plan_id: uuid.UUID
     payment_type: str = "full"
-    amount_due: float
+    billing_cycle: str = "monthly"
+    amount_due: float = 0
 
 
 # ---- Dashboard ----

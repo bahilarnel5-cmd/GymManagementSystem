@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import GymRenewalRequest, GymMembership, GymMember, GymPayment
 from app.auth import require_role
 from app.schemas import RenewalRequestCreate, RenewalCompleteIn
+from app.pricing import billing_cycle_duration_days, normalize_billing_cycle
 
 router = APIRouter(prefix="/gym_renewal_requests", tags=["renewals"])
 
@@ -41,6 +42,7 @@ def list_renewal_requests(
 
 @router.post("/")
 def create_renewal_request(payload_in: RenewalRequestCreate, payload: dict = Depends(require_role("admin", "member")), db: Session = Depends(get_db)):
+    cycle = normalize_billing_cycle(payload_in.billing_cycle)
     new_request = GymRenewalRequest(
         id=uuid.uuid4(),
         organization_id=payload_in.organization_id,
@@ -48,7 +50,9 @@ def create_renewal_request(payload_in: RenewalRequestCreate, payload: dict = Dep
         membership_id=payload_in.membership_id,
         requested_date=payload_in.requested_date,
         payment_type=payload_in.payment_type,
+        billing_cycle=cycle,
         amount=payload_in.amount,
+        final_amount=payload_in.amount,
         status="pending",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -69,8 +73,14 @@ def complete_renewal(request_id: uuid.UUID, payload_in: RenewalCompleteIn, paylo
     if not membership:
         raise HTTPException(status_code=404, detail="Membership not found")
 
-    membership.end_date = membership.end_date + timedelta(days=payload_in.extend_days)
+    cycle = normalize_billing_cycle(req.billing_cycle)
+    extend_days = billing_cycle_duration_days(cycle)
+
+    membership.end_date = membership.end_date + timedelta(days=extend_days)
     membership.status = "active"
+    membership.billing_cycle = cycle
+    membership.discount_applied = req.discount_applied
+    membership.final_amount = float(req.amount)
     membership.updated_at = datetime.now(timezone.utc)
 
     receipt_no = f"OR-{uuid.uuid4().hex[:6].upper()}"
@@ -80,10 +90,12 @@ def complete_renewal(request_id: uuid.UUID, payload_in: RenewalCompleteIn, paylo
         member_id=req.member_id,
         membership_id=req.membership_id,
         receipt_no=receipt_no,
-        item_description=f"Membership renewal ({req.payment_type})",
+        item_description=f"Membership renewal ({req.payment_type}, {cycle})",
         amount=req.amount,
         payment_method="cash",
         status="paid",
+        discount_amount=float(req.discount_applied or 0),
+        discount_description="Annual billing discount" if (req.discount_applied and cycle == "annual") else None,
         paid_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),

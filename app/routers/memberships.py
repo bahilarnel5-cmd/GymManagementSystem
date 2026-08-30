@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import GymMembership, GymMember, GymMembershipPlan
 from app.auth import require_role
 from app.schemas import MembershipCreate, MembershipUpdate, AvailPlanIn
+from app.pricing import compute_billing, annual_discount_percentage, billing_cycle_duration_days, normalize_billing_cycle
 
 router = APIRouter(prefix="/gym_memberships", tags=["memberships"])
 
@@ -133,17 +134,33 @@ def create_membership(membership: MembershipCreate, payload: dict = Depends(requ
 
 @router.post("/avail")
 def avail_plan(payload_in: AvailPlanIn, payload: dict = Depends(require_role("admin", "member")), db: Session = Depends(get_db)):
+    org_id = uuid.UUID(payload.get("organization_id")) if payload.get("organization_id") else payload_in.organization_id
+
+    member = db.query(GymMember).filter(GymMember.id == payload_in.member_id).first()
+    if not member or member.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    plan = db.query(GymMembershipPlan).filter(GymMembershipPlan.id == payload_in.plan_id, GymMembershipPlan.is_active == True).first()
+    if not plan or plan.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    cycle = normalize_billing_cycle(payload_in.billing_cycle)
+    pricing = compute_billing(plan.price, cycle, annual_discount_percentage(db, org_id))
+
     start = datetime.now(timezone.utc)
-    end = start + timedelta(days=30)
+    end = start + timedelta(days=billing_cycle_duration_days(cycle))
 
     new_membership = GymMembership(
         id=uuid.uuid4(),
-        organization_id=payload_in.organization_id,
+        organization_id=org_id,
         member_id=payload_in.member_id,
         plan_id=payload_in.plan_id,
         status="pending_payment",
         payment_type=payload_in.payment_type,
-        amount_due=payload_in.amount_due,
+        billing_cycle=pricing["billing_cycle"],
+        amount_due=pricing["final_amount"],
+        discount_applied=pricing["discount_applied"],
+        final_amount=pricing["final_amount"],
         amount_paid=0,
         start_date=start,
         end_date=end,
@@ -153,7 +170,15 @@ def avail_plan(payload_in: AvailPlanIn, payload: dict = Depends(require_role("ad
     db.add(new_membership)
     db.commit()
     db.refresh(new_membership)
-    return {"id": str(new_membership.id)}
+    return {
+        "id": str(new_membership.id),
+        "amount": float(new_membership.amount_due),
+        "billing_cycle": new_membership.billing_cycle,
+        "discount_applied": float(new_membership.discount_applied or 0),
+        "original_total": pricing["original_total"],
+        "final_amount": float(new_membership.final_amount),
+        "message": "Plan availed. Complete payment to activate membership.",
+    }
 
 
 @router.put("/{membership_id}")

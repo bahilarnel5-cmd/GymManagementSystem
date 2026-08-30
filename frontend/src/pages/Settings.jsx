@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -434,10 +434,32 @@ function CoachForm({ orgId, queryClient, editData, onDone }) {
 function PlansManager({ orgId, queryClient }) {
   const [editing, setEditing] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [discountInput, setDiscountInput] = useState(null)
 
   const { data: plansData, isLoading } = useQuery({
     queryKey: ['plans'],
     queryFn: () => api.get('/gym_membership_plans/?per_page=50').then((r) => r.data),
+  })
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings-discount'],
+    queryFn: () => api.get('/gym_settings/annual-discount').then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (settings != null && discountInput == null) {
+      setDiscountInput(String(settings.annual_discount_percentage))
+    }
+  }, [settings, discountInput])
+
+  const discountMutation = useMutation({
+    mutationFn: (value) =>
+      api.patch('/gym_settings/annual-discount', { annual_discount_percentage: value }).then((r) => r.data),
+    onSuccess: (data) => {
+      setDiscountInput(String(data.annual_discount_percentage))
+      queryClient.setQueryData(['settings-discount'], data)
+      queryClient.invalidateQueries({ queryKey: ['member-plans'] })
+    },
   })
 
   const deleteMutation = useMutation({
@@ -449,6 +471,41 @@ function PlansManager({ orgId, queryClient }) {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800">Annual Billing Discount</h3>
+            <p className="text-xs text-gray-400 mt-1">
+              Applied to 12 months of a membership plan, e.g. monthly price × 12 minus this percent.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-3">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.5"
+                value={discountInput ?? ''}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                className="w-16 py-2 bg-transparent text-sm font-semibold text-gray-800 outline-none"
+              />
+              <span className="text-sm text-gray-400">%</span>
+            </div>
+            <button
+              onClick={() => discountMutation.mutate(parseFloat(discountInput))}
+              disabled={discountMutation.isPending || discountInput == null || discountInput === ''}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            >
+              {discountMutation.isPending ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+        {discountMutation.isError && (
+          <p className="text-sm text-red-500 mt-2">{discountMutation.error?.response?.data?.detail || 'Failed to update'}</p>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">Membership Plans ({plans.length})</h2>
         <button

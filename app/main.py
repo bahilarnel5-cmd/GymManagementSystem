@@ -31,6 +31,13 @@ def ensure_schema():
         "ALTER TABLE gym_payment_submissions ADD COLUMN IF NOT EXISTS enrollment_id UUID",
         "ALTER TABLE gym_payment_submissions ADD COLUMN IF NOT EXISTS renewal_id UUID",
         "ALTER TABLE gym_coaches ADD COLUMN IF NOT EXISTS email VARCHAR(150)",
+        "ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS annual_discount_percentage NUMERIC(5, 2) NOT NULL DEFAULT 15",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly'",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS discount_applied NUMERIC(10, 2)",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10, 2) NOT NULL DEFAULT 0",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly'",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS discount_applied NUMERIC(10, 2)",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10, 2) NOT NULL DEFAULT 0",
     ]
     conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
     try:
