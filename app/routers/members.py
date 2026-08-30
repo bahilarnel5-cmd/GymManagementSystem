@@ -5,7 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GymMember, GymUser, GymMemberChangeRequest
+from app.models import (
+    GymMember, GymUser, GymMemberChangeRequest, GymMembership, GymPtSession,
+    GymPayment, GymCheckIn, GymRenewalRequest, MemberBooking, GymPaymentSubmission,
+    GymCoachEnrollment,
+)
 from app.auth import require_role
 from app.schemas import MemberCreate, MemberUpdate, MemberChangeRequestReview
 from app.activity import log_action
@@ -440,6 +444,16 @@ def delete_member(member_id: uuid.UUID, payload: dict = Depends(require_role("ad
         raise HTTPException(status_code=404, detail="Member not found")
     member_name = m.full_name
     org_id = m.organization_id
+
+    # Cascade-clean every row referencing the member (FKs have no ON DELETE CASCADE).
+    for model in [
+        GymPaymentSubmission, GymCoachEnrollment, GymMemberChangeRequest,
+        GymPtSession, GymPayment, GymCheckIn, MemberBooking, GymRenewalRequest,
+        GymMembership,
+    ]:
+        db.query(model).filter(model.member_id == member_id).delete(synchronize_session=False)
+    db.query(GymUser).filter(GymUser.member_id == member_id).delete(synchronize_session=False)
+
     db.delete(m)
     db.commit()
     log_action(
