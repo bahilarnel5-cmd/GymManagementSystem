@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -53,7 +53,7 @@ export default function Settings() {
           {activeTab === 'members' && <MembersForm orgId={orgId} queryClient={queryClient} />}
           {activeTab === 'coaches' && <CoachesManager orgId={orgId} queryClient={queryClient} />}
           {activeTab === 'plans' && <PlansManager orgId={orgId} queryClient={queryClient} />}
-          {activeTab === 'roles' && <RolesManager queryClient={queryClient} />}
+          {activeTab === 'roles' && <SidebarRoles queryClient={queryClient} />}
         </div>
       </div>
     </div>
@@ -619,267 +619,179 @@ function PlanForm({ orgId, queryClient, editData, onDone }) {
   )
 }
 
-function RolesManager({ queryClient }) {
-  const [selectedRole, setSelectedRole] = useState('admin')
-  const { data, isLoading } = useQuery({
-    queryKey: ['role-menus'],
-    queryFn: () => api.get('/gym_menus/roles').then((r) => r.data),
+function SidebarRoles({ queryClient }) {
+  const [label, setLabel] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [selected, setSelected] = useState(() => new Set())
+
+  const { data: sectionsData, isLoading } = useQuery({
+    queryKey: ['role-sections'],
+    queryFn: () => api.get('/gym_menus/sections').then((r) => r.data),
   })
-  const roles = data?.roles || []
-
-  const saveMutation = useMutation({
-    mutationFn: (payload) => api.put(`/gym_menus/roles/${payload.role}`, { role: payload.role, items: payload.items }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['role-menus'] })
-      queryClient.invalidateQueries({ queryKey: ['my-menus'] })
-    },
-  })
-
-  const currentRole = roles.find((r) => r.role === selectedRole)
-  const currentItems = currentRole?.items || []
-
-  // Single unified set of every sidebar section across all roles and portals,
-  // shown once each (deduplicated by menu_id) — one flat merged grid.
-  const unifiedTiles = []
-  const seen = new Set()
-  for (const role of roles) {
-    for (const item of role.items) {
-      if (!seen.has(item.menu_id)) {
-        seen.add(item.menu_id)
-        unifiedTiles.push(item)
-      }
-    }
-  }
-
-  const enabledCount = currentItems.filter((i) => i.enabled).length
-
-  const toggleItem = (menuId) => {
-    const next = currentItems.map((it) => it.menu_id === menuId ? { ...it, enabled: !it.enabled } : it)
-    saveMutation.mutate({ role: selectedRole, items: next })
-  }
-
-  const handleNewRole = () => {
-    const name = window.prompt('New role name, e.g. cashier or front desk')
-    if (!name || !name.trim()) return
-    const normalized = name.trim().toLowerCase().replace(/\s+/g, '_')
-    if (!normalized) return
-    if (roles.some((r) => r.role === normalized)) {
-      setSelectedRole(normalized)
-      return
-    }
-    const items = unifiedTiles.map((t) => ({ menu_id: t.menu_id, enabled: false }))
-    saveMutation.mutate(
-      { role: normalized, items },
-      { onSuccess: () => setSelectedRole(normalized) },
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-t-2xl px-5 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-            <i className="bi bi-list-check text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">Step 1 — Define role permissions</h2>
-            <p className="text-indigo-100 text-xs">Pick a role, then toggle which sidebar sections it sees from one merged grid</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 border-t-0 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
-          ) : (
-            <div className="p-6">
-              <div className="flex justify-center mb-6">
-                <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl flex-wrap justify-center">
-                  {roles.map((role) => {
-                    const count = role.items.filter((i) => i.enabled).length
-                    return (
-                      <button
-                        key={role.role}
-                        onClick={() => setSelectedRole(role.role)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          selectedRole === role.role ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        <span className="capitalize">{role.role.replace(/_/g, ' ')}</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${selectedRole === role.role ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={handleNewRole}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 transition-all duration-200"
-                  >
-                    <i className="bi bi-plus-lg text-xs" />
-                    New Role
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-3">
-                {unifiedTiles.map((tile) => {
-                  const item = currentItems.find((it) => it.menu_id === tile.menu_id)
-                  const enabled = !!item && item.enabled
-                  return (
-                    <button
-                      key={tile.menu_id}
-                      onClick={() => toggleItem(tile.menu_id)}
-                      title={`Toggle ${tile.label}`}
-                      className={`w-28 rounded-2xl border-2 p-4 flex flex-col items-center gap-2 text-center transition-all duration-200 ${
-                        enabled
-                          ? 'border-indigo-600 bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md'
-                          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                        enabled ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'
-                      }`}>
-                        <i className={`bi ${tile.icon} text-lg`} />
-                      </div>
-                      <span className={`text-xs font-medium leading-tight ${enabled ? 'text-white' : 'text-gray-700'}`}>
-                        {tile.label}
-                      </span>
-                      <i className={`bi text-[10px] ${enabled ? 'bi-check-circle-fill text-white/80' : 'bi-circle text-gray-300'}`} />
-                    </button>
-                  )
-                })}
-              </div>
-
-              <p className="text-xs text-gray-400 text-center mt-6">
-                <span className="capitalize">{selectedRole.replace(/_/g, ' ')}</span> sees {enabledCount} of {unifiedTiles.length} sections — tap a tile to toggle it for this role.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <StaffAccountForm queryClient={queryClient} selectedRole={selectedRole} />
-    </div>
-  )
-}
-
-function StaffAccountForm({ queryClient, selectedRole }) {
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ role: '', email: '', password: '' })
-
-  useEffect(() => {
-    if (selectedRole) setForm((f) => ({ ...f, role: selectedRole }))
-  }, [selectedRole])
-
-  const { data: rolesData } = useQuery({
-    queryKey: ['role-menus'],
-    queryFn: () => api.get('/gym_menus/roles').then((r) => r.data),
-  })
-  const roles = rolesData?.roles || []
+  const sections = sectionsData?.items || []
 
   const { data: usersData } = useQuery({
     queryKey: ['staff-accounts'],
     queryFn: () => api.get('/auth/users').then((r) => r.data),
   })
-  const staffAccounts = (usersData || []).filter((u) => u.role !== 'member')
+  const accounts = (usersData || []).filter((u) => u.role !== 'member')
 
   const createMutation = useMutation({
     mutationFn: (c) => api.post('/gym_menus/accounts', c),
-    onSuccess: (data) => {
-      setForm({ role: data.role || '', email: '', password: '' })
-      setShowForm(false)
+    onSuccess: () => {
+      setLabel(''); setEmail(''); setPassword(''); setSelected(new Set())
       queryClient.invalidateQueries({ queryKey: ['staff-accounts'] })
-      queryClient.invalidateQueries({ queryKey: ['role-menus'] })
     },
   })
 
-  const roleEnabledCount = roles.find((r) => r.role === form.role)?.items.filter((i) => i.enabled).length ?? 0
-  const totalSections = roles[0]?.items.length || 0
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/gym_menus/accounts/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['staff-accounts'] }),
+  })
+
+  const toggleSection = (menuId) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(menuId)) next.delete(menuId)
+      else next.add(menuId)
+      return next
+    })
+  }
+
+  const handleCreate = (e) => {
+    e.preventDefault()
+    createMutation.mutate({
+      role: label,
+      email,
+      password,
+      items: sections.map((s) => ({ menu_id: s.menu_id, enabled: selected.has(s.menu_id) })),
+    })
+  }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-            <i className="bi bi-person-plus text-indigo-600 text-sm" />
+    <div>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
+            <i className="bi bi-list-check text-gray-600 text-sm" />
           </div>
           <div>
-            <h2 className="font-semibold text-gray-800">Step 2 — Create an account for a role</h2>
-            <p className="text-xs text-gray-400">The account signs in and only sees its role's sidebar sections</p>
+            <h2 className="font-semibold text-gray-800">Sidebar &amp; Roles</h2>
+            <p className="text-xs text-gray-400">Pick the sidebar sections, then create the account — one flow</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          <i className={`bi ${showForm ? 'bi-x-lg' : 'bi-plus-lg'} text-xs`} />
-          {showForm ? 'Close' : 'Create Staff Account'}
-        </button>
-      </div>
 
-      {showForm && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form) }}
-          className="p-5 space-y-4"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Role</label>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required>
-                <option value="">Select a role...</option>
-                {roles.filter((r) => r.role !== 'member').map((r) => (
-                  <option key={r.role} value={r.role}>{r.role.replace(/_/g, ' ')} — {r.items.filter((i) => i.enabled).length} sections</option>
-                ))}
-              </select>
-              {form.role && roleEnabledCount === 0 && (
-                <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
-                  <i className="bi bi-exclamation-triangle" /> This role has no sections enabled yet
+        <div className="p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sidebar sections</p>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setSelected(new Set(sections.map((s) => s.menu_id)))} className="text-xs font-medium text-gray-500 hover:text-gray-800">Select all</button>
+              <span className="text-gray-300">·</span>
+              <button type="button" onClick={() => setSelected(new Set())} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreate}>
+            {isLoading ? (
+              <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-7 w-7 border-b-2 border-gray-500" /></div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-2.5">
+                {sections.map((s) => {
+                  const on = selected.has(s.menu_id)
+                  return (
+                    <button
+                      key={s.menu_id}
+                      type="button"
+                      onClick={() => toggleSection(s.menu_id)}
+                      aria-pressed={on}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
+                        on ? 'border-gray-800 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                      }`}
+                    >
+                      <i className={`bi ${s.icon} ${on ? 'text-white' : 'text-gray-400'} text-sm`} />
+                      <span className="text-xs font-medium">{s.label}</span>
+                      {on && <i className="bi bi-check2 text-[10px]" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              {selected.size} of {sections.length} sections selected{selected.size > 0 ? ' — this account will only see these' : ''}
+            </p>
+
+            <div className="border-t border-gray-100 mt-6 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Account label</label>
+                  <input placeholder="e.g. Cashier, Front Desk" value={label} onChange={(e) => setLabel(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 focus:border-transparent outline-none" required />
+                  {label.trim() && (
+                    <p className="mt-1 text-[10px] text-gray-400">“{label.trim()}” · {selected.size} sections</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+                  <input type="email" placeholder="staff@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 focus:border-transparent outline-none" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
+                  <input type="password" placeholder="Set a password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 focus:border-transparent outline-none" required />
+                </div>
+              </div>
+
+              {selected.size === 0 && (
+                <p className="mt-3 text-xs text-amber-600 flex items-center gap-1">
+                  <i className="bi bi-exclamation-triangle" /> No sections selected — this account will sign in to an empty portal.
+                </p>
+              )}
+
+              <div className="flex items-center gap-3 pt-4">
+                <button type="submit" disabled={createMutation.isPending} className="bg-gray-900 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors">
+                  {createMutation.isPending ? 'Creating...' : <><i className="bi bi-person-plus mr-1.5" /> Create Account</>}
+                </button>
+                {createMutation.isError && <p className="text-sm text-red-500">{createMutation.error?.response?.data?.detail || 'Error'}</p>}
+              </div>
+              {createMutation.isSuccess && (
+                <p className="mt-3 text-sm text-gray-700 flex items-center gap-1.5">
+                  <i className="bi bi-check-circle-fill text-emerald-600" /> Account created — it signs in with only the selected sections.
                 </p>
               )}
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
-              <input type="email" placeholder="staff@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
-              <input type="text" placeholder="Set a password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required />
-            </div>
-          </div>
-          {roleEnabledCount > 0 && (
-            <p className="text-xs text-gray-400 flex items-center gap-1.5">
-              <i className="bi bi-info-circle" />
-              This account will see {roleEnabledCount} of {totalSections} possible sections.
-            </p>
-          )}
-          <div className="flex items-center gap-3">
-            <button type="submit" disabled={createMutation.isPending} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-              {createMutation.isPending ? 'Creating...' : 'Create Account'}
-            </button>
-            {createMutation.isError && <p className="text-sm text-red-500">{createMutation.error?.response?.data?.detail || 'Error'}</p>}
-          </div>
-          {createMutation.isSuccess && <p className="text-sm text-indigo-600">Staff account created! They can now sign in with this email.</p>}
-        </form>
-      )}
+          </form>
+        </div>
+      </div>
 
-      <div className="border-t border-gray-100 px-5 py-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Staff Accounts ({staffAccounts.length})</h3>
-        {staffAccounts.length === 0 ? (
-          <p className="text-sm text-gray-400">No staff accounts yet. Create one above.</p>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+        <div className="px-5 py-4 border-b border-gray-200">
+          <h3 className="font-semibold text-gray-800">Existing staff accounts</h3>
+          <p className="text-xs text-gray-400">Accounts with custom permission sets (member accounts are excluded)</p>
+        </div>
+        {accounts.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-gray-400">No staff accounts yet.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {staffAccounts.map((u) => (
-              <li key={u.id} className="py-2.5 flex items-center justify-between gap-3">
+            {accounts.map((u) => (
+              <li key={u.id} className="px-5 py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
                     <i className="bi bi-person text-sm" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{u.email}</p>
-                    <p className="text-[10px] text-gray-400">Signs in to the staff portal</p>
+                    <p className="text-[10px] text-gray-400">
+                      Role: <span className="capitalize">{u.role.replace(/_/g, ' ')}</span>
+                    </p>
                   </div>
                 </div>
-                <span className="px-2 py-1 rounded-full text-xs font-medium capitalize bg-indigo-50 text-indigo-700 shrink-0">
-                  {u.role.replace(/_/g, ' ')}
-                </span>
+                <button
+                  onClick={() => { if (confirm(`Remove ${u.email} (${u.role.replace(/_/g, ' ')})?`)) deleteMutation.mutate(u.id) }}
+                  disabled={deleteMutation.isPending}
+                  className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <i className="bi bi-trash" /> Remove
+                </button>
               </li>
             ))}
           </ul>

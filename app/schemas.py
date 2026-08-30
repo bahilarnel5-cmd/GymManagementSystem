@@ -443,14 +443,6 @@ class CoachSlotResponse(BaseModel):
     booked_by_me: bool
 
 
-# ---- Staff Accounts ----
-
-class StaffAccountCreate(BaseModel):
-    email: EmailStr
-    password: str
-    role: str  # Sidebar permission set assigned to this account
-
-
 # ---- Role Menu Config ----
 
 class MenuItemUpdate(BaseModel):
@@ -461,3 +453,12 @@ class MenuItemUpdate(BaseModel):
 class RoleMenuUpdate(BaseModel):
     role: str
     items: list[MenuItemUpdate]
+
+
+# ---- Staff Accounts ----
+
+class StaffAccountCreate(BaseModel):
+    email: EmailStr
+    password: str
+    role: str  # Sidebar permission set label assigned to this account
+    items: list[MenuItemUpdate] = []  # Exact permission set attached at creation

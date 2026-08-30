@@ -51,6 +51,16 @@ def get_my_menu(payload: dict = Depends(decode_token), db: Session = Depends(get
     ]}
 
 
+@router.get("/sections")
+def get_sections(payload: dict = Depends(require_role("admin"))):
+    """The full merged list of every sidebar section across all portals —
+    the single unified grid the admin configures a new account with."""
+    return {"items": [
+        {"menu_id": s["menu_id"], "label": s["label"], "icon": s["icon"]}
+        for s in all_sections()
+    ]}
+
+
 @router.get("/roles")
 def get_role_menus(payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
     """All roles (built-in + staff/custom) with the full merged section grid
@@ -148,12 +158,14 @@ def create_staff_account(
     payload: dict = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
-    """Create a staff account. The role (e.g. 'cashier') defines which sidebar
-    sections the account sees — member-type self-registration is unchanged."""
+    """Create a staff account and attach its exact permission set. The role
+    (e.g. 'cashier') is the label of the permission set — the account signs in
+    and only sees the toggled sidebar sections. Member-type self-registration
+    is unchanged."""
     organization_id = payload.get("organization_id")
     role = payload_in.role.strip().lower().replace(" ", "_")
     if not role:
-        raise HTTPException(status_code=400, detail="Role is required")
+        raise HTTPException(status_code=400, detail="Account label is required")
     if role == "member":
         raise HTTPException(status_code=400, detail="Member accounts are created through member registration")
 
@@ -176,6 +188,37 @@ def create_staff_account(
         updated_at=now,
     )
     db.add(user)
+
+    for item in payload_in.items:
+        m = _section_for(role, item.menu_id)
+        if m is None:
+            continue
+        row = (
+            db.query(GymRoleMenu)
+            .filter(
+                GymRoleMenu.organization_id == organization_id,
+                GymRoleMenu.role == role,
+                GymRoleMenu.menu_id == item.menu_id,
+            )
+            .first()
+        )
+        if row:
+            row.enabled = item.enabled
+            row.updated_at = now
+        else:
+            db.add(GymRoleMenu(
+                id=uuid.uuid4(),
+                organization_id=organization_id,
+                role=role,
+                menu_id=item.menu_id,
+                label=m["label"],
+                icon=m["icon"],
+                path=m["path"],
+                enabled=item.enabled,
+                sort_order=m["sort_order"],
+                created_at=now,
+                updated_at=now,
+            ))
     db.commit()
     db.refresh(user)
 
@@ -188,3 +231,49 @@ def create_staff_account(
     )
     db.commit()
     return {"id": str(user.id), "email": user.email, "role": user.role}
+
+
+@router.delete("/accounts/{user_id}")
+def delete_staff_account(
+    user_id: uuid.UUID,
+    payload: dict = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Remove a staff account. Member accounts and the caller's own account
+    are protected. If no other account shares the role, the role's sidebar
+    definition is cleaned up too so accounts are always re-created fresh."""
+    organization_id = payload.get("organization_id")
+    user = db.query(GymUser).filter(
+        GymUser.id == user_id,
+        GymUser.organization_id == organization_id,
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if user.role == "member":
+        raise HTTPException(status_code=400, detail="Member accounts are removed with their member records")
+    if str(user.id) == payload.get("sub"):
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+    email = user.email
+    role = user.role
+    db.delete(user)
+
+    still_used = db.query(GymUser).filter(
+        GymUser.organization_id == organization_id,
+        GymUser.role == role,
+    ).count()
+    if still_used == 0:
+        db.query(GymRoleMenu).filter(
+            GymRoleMenu.organization_id == organization_id,
+            GymRoleMenu.role == role,
+        ).delete(synchronize_session=False)
+    db.commit()
+
+    from app.activity import log_action
+    log_action(
+        db, organization_id, "delete", "staff_account", entity_id=user_id,
+        description=f"Removed {role} staff account {email}",
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
+    return {"deleted": True, "email": email, "role": role}
