@@ -42,6 +42,7 @@ export default function MemberDashboard() {
   const payments = data?.recent_payments || []
   const bookings = data?.recent_bookings || []
   const enrollments = data?.recent_enrollments || []
+  const activeCoaches = enrollments.filter((e) => e.enrollment_status === 'active')
 
   return (
     <div>
@@ -103,6 +104,48 @@ export default function MemberDashboard() {
           <p className="text-sm text-gray-400 mt-1">Visit the Renewals page to get started</p>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl shadow-sm border border-violet-100 p-6 mb-6">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">My Current Coaches</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Your active coach availments right now</p>
+          </div>
+          <span className="hidden sm:block w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+            <i className="bi bi-person-badge text-violet-500" />
+          </span>
+        </div>
+        {activeCoaches.length === 0 ? (
+          <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-4">
+            <i className="bi bi-person-x text-xl text-gray-300" />
+            <div>
+              <p className="text-sm font-medium text-gray-600">No active coach yet</p>
+              <p className="text-xs text-gray-400 mt-0.5">Visit the Coaches page to avail a coaching plan</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeCoaches.map((e) => (
+              <div key={e.id} className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="text-sm font-bold text-gray-800">{e.coach_name}</p>
+                  <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                    Active
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">{e.coach_specialization || 'Coach'}</p>
+                {e.selected_day_names.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-2 line-clamp-1">{e.selected_day_names.join(', ')}</p>
+                )}
+                <div className="mt-3 pt-3 border-t border-violet-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Paid</span>
+                  <span className="text-sm font-bold text-gray-800">₱{e.amount_paid.toLocaleString()} / ₱{e.total_amount.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
