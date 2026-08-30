@@ -14,6 +14,7 @@ from .member_portal import router as member_portal_router
 from .activity_logs import router as activity_logs_router
 from .menus import router as menus_router
 from .coach_portal import router as coach_portal_router
+from .coach_enrollments import router as coach_enrollments_router
 
 all_routers = [
     auth_router,
@@ -32,4 +33,5 @@ all_routers = [
     activity_logs_router,
     menus_router,
     coach_portal_router,
+    coach_enrollments_router,
 ]

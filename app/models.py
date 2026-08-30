@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Text, Boolean, Integer, Numeric, Date, DateTime, ForeignKey, Index, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -278,6 +278,7 @@ class GymPaymentSubmission(Base):
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=False, index=True)
     membership_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_memberships.id"), nullable=True)
     renewal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_renewal_requests.id"), nullable=True)
+    enrollment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coach_enrollments.id"), nullable=True)
     amount_paid: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     ref_last4: Mapped[str] = mapped_column(String(4), nullable=False)
     screenshot_path: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -286,6 +287,34 @@ class GymPaymentSubmission(Base):
     submitted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class GymCoachEnrollment(Base):
+    """A member's enrollment with a coach for recurring days.
+
+    Payment_method: full_payment | down_payment | cash
+    payment_status: pending | partially_paid | paid | cash_pending
+    enrollment_status: pending_payment | active | cancelled
+    """
+    __tablename__ = "gym_coach_enrollments"
+    __table_args__ = (
+        Index("ix_gym_coach_enrollments_org", "organization_id"),
+        Index("ix_gym_coach_enrollments_member", "member_id"),
+        Index("ix_gym_coach_enrollments_coach", "coach_id"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=False, index=True)
+    coach_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_coaches.id"), nullable=False, index=True)
+    selected_days: Mapped[list] = mapped_column(ARRAY(Integer), nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
+    total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    amount_paid: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    payment_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    enrollment_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending_payment")
+    enrolled_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 

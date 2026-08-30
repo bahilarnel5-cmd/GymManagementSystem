@@ -354,6 +354,19 @@ class PaginatedResponse(BaseModel):
     pages: int
 
 
+# ---- Coach Enrollments ----
+
+class CoachEnrollmentCreate(BaseModel):
+    coach_id: uuid.UUID
+    selected_days: list[int]
+    payment_method: str
+    amount_expected: Optional[float] = None
+
+
+class CoachEnrollmentConfirmCash(BaseModel):
+    confirm: bool = True
+
+
 # ---- Coach Schedules ----
 
 class CoachScheduleCreate(BaseModel):

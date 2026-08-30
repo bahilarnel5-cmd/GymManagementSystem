@@ -35,6 +35,7 @@ def _submission_row(sub, db):
         "member_name": member.full_name if member else "Unknown",
         "membership_id": str(sub.membership_id) if sub.membership_id else None,
         "renewal_id": str(sub.renewal_id) if sub.renewal_id else None,
+        "enrollment_id": str(sub.enrollment_id) if sub.enrollment_id else None,
         "amount_paid": float(sub.amount_paid),
         "ref_last4": sub.ref_last4,
         "screenshot_url": storage.signed_url(sub.screenshot_path),
@@ -167,6 +168,7 @@ async def submit_payment(
     amount_paid: float = Form(...),
     ref_last4: str = Form(...),
     file: UploadFile = File(...),
+    enrollment_id: str = Form(""),
     payload: dict = Depends(require_role("admin", "member")),
     db: Session = Depends(get_db),
 ):
@@ -195,6 +197,40 @@ async def submit_payment(
     if len(clean_ref) != 4:
         raise HTTPException(status_code=422, detail="Reference number must be exactly 4 digits")
 
+    # Optional coach-enrollment linkage: validate the amount against the
+    # enrollment's payment method before accepting the submission.
+    enrollment = None
+    if enrollment_id:
+        from app.models import GymCoachEnrollment
+        try:
+            eid = uuid.UUID(enrollment_id)
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid enrollment_id")
+        enrollment = db.query(GymCoachEnrollment).filter(GymCoachEnrollment.id == eid).first()
+        if not enrollment:
+            raise HTTPException(status_code=404, detail="Enrollment not found")
+        if str(enrollment.member_id) != str(mid):
+            raise HTTPException(status_code=403, detail="Enrollment does not belong to this member")
+        total = float(enrollment.total_amount)
+        if enrollment.payment_method == "full_payment":
+            if abs(amount_paid - total) > 0.005:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Full payment requires exactly the total amount (₱{total:,.2f})",
+                )
+        elif enrollment.payment_method == "down_payment":
+            min_amount = math.ceil(total * 0.30 * 100) / 100
+            if amount_paid < min_amount:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Down payment must be at least 30% of the total (₱{min_amount:,.2f})",
+                )
+            if amount_paid > total + 0.005:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Amount cannot exceed the total (₱{total:,.2f})",
+                )
+
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=422, detail="Proof image is required")
@@ -217,6 +253,7 @@ async def submit_payment(
         organization_id=member.organization_id,
         member_id=mid,
         membership_id=latest_membership.id if latest_membership else None,
+        enrollment_id=enrollment.id if enrollment else None,
         amount_paid=amount_paid,
         ref_last4=clean_ref,
         screenshot_path=path,
@@ -330,7 +367,10 @@ def review_submission(
     member = db.query(GymMember).filter(GymMember.id == sub.member_id).first()
 
     if body.status == "approved":
-        _mark_membership_paid(db, sub)
+        if sub.enrollment_id:
+            _apply_enrollment_payment(db, sub)
+        else:
+            _mark_membership_paid(db, sub)
 
     sub.status = body.status
     sub.admin_notes = body.admin_notes or None
@@ -405,6 +445,59 @@ def _mark_membership_paid(db, sub):
         item_description=f"GCash payment (ref ...{sub.ref_last4})",
         amount=float(sub.amount_paid),
         payment_category="membership",
+        discount_amount=0,
+        payment_method="gcash",
+        reference_no=sub.ref_last4,
+        status="paid",
+        paid_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db.add(new_payment)
+
+
+def _apply_enrollment_payment(db, sub):
+    """Apply an approved GCash submission to a linked coach enrollment:
+    accumulate amount_paid, update payment/enrollment status, and record a
+    coach-category GymPayment row."""
+    from app.models import GymCoachEnrollment, GymCoach
+
+    enrollment = db.query(GymCoachEnrollment).filter(GymCoachEnrollment.id == sub.enrollment_id).first()
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Linked coach enrollment not found")
+
+    total = float(enrollment.total_amount)
+    paid = float(enrollment.amount_paid or 0) + float(sub.amount_paid)
+
+    if enrollment.payment_method == "full_payment":
+        enrollment.payment_status = "paid"
+        enrollment.amount_paid = total
+    elif enrollment.payment_method == "down_payment":
+        enrollment.payment_status = "partially_paid"
+        enrollment.amount_paid = paid
+        if paid >= total - 0.005:
+            enrollment.payment_status = "paid"
+            enrollment.amount_paid = total
+    enrollment.enrollment_status = "active"
+    enrollment.updated_at = datetime.now(timezone.utc)
+
+    member = db.query(GymMember).filter(GymMember.id == sub.member_id).first()
+    if member and member.assigned_coach_id is None:
+        member.assigned_coach_id = enrollment.coach_id
+        member.updated_at = datetime.now(timezone.utc)
+
+    coach = db.query(GymCoach).filter(GymCoach.id == enrollment.coach_id).first()
+    coach_label = coach.full_name if coach else "coach"
+
+    receipt_no = f"OR-{uuid.uuid4().hex[:6].upper()}"
+    new_payment = GymPayment(
+        id=uuid.uuid4(),
+        organization_id=sub.organization_id,
+        member_id=sub.member_id,
+        receipt_no=receipt_no,
+        item_description=f"Coach enrollment payment - {coach_label} (ref ...{sub.ref_last4})",
+        amount=float(sub.amount_paid),
+        payment_category="coach",
         discount_amount=0,
         payment_method="gcash",
         reference_no=sub.ref_last4,
