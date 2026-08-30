@@ -169,6 +169,7 @@ async def submit_payment(
     ref_last4: str = Form(...),
     file: UploadFile = File(...),
     enrollment_id: str = Form(""),
+    renewal_id: str = Form(""),
     payload: dict = Depends(require_role("admin", "member")),
     db: Session = Depends(get_db),
 ):
@@ -231,6 +232,28 @@ async def submit_payment(
                     detail=f"Amount cannot exceed the total (₱{total:,.2f})",
                 )
 
+    # Optional membership-renewal linkage: validate the amount against the
+    # renewal request's plan price before accepting the submission.
+    renewal = None
+    if renewal_id:
+        from app.models import GymRenewalRequest
+        try:
+            rid = uuid.UUID(renewal_id)
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid renewal_id")
+        renewal = db.query(GymRenewalRequest).filter(GymRenewalRequest.id == rid).first()
+        if not renewal:
+            raise HTTPException(status_code=404, detail="Renewal request not found")
+        if str(renewal.member_id) != str(mid):
+            raise HTTPException(status_code=403, detail="Renewal does not belong to this member")
+        if renewal.status != "pending":
+            raise HTTPException(status_code=400, detail="Renewal request is not pending")
+        if abs(amount_paid - float(renewal.amount)) > 0.005:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Renewal payment requires exactly the plan price (₱{float(renewal.amount):,.2f})",
+            )
+
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=422, detail="Proof image is required")
@@ -252,7 +275,8 @@ async def submit_payment(
         id=uuid.uuid4(),
         organization_id=member.organization_id,
         member_id=mid,
-        membership_id=latest_membership.id if latest_membership else None,
+        membership_id=renewal.membership_id if renewal else (latest_membership.id if latest_membership else None),
+        renewal_id=renewal.id if renewal else None,
         enrollment_id=enrollment.id if enrollment else None,
         amount_paid=amount_paid,
         ref_last4=clean_ref,
@@ -371,6 +395,12 @@ def review_submission(
             _apply_enrollment_payment(db, sub)
         else:
             _mark_membership_paid(db, sub)
+            if sub.renewal_id:
+                from app.models import GymRenewalRequest
+                renewal = db.query(GymRenewalRequest).filter(GymRenewalRequest.id == sub.renewal_id).first()
+                if renewal:
+                    renewal.status = "completed"
+                    renewal.updated_at = datetime.now(timezone.utc)
 
     sub.status = body.status
     sub.admin_notes = body.admin_notes or None

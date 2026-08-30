@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
+import GcashPaymentForm from '../components/GcashPaymentForm'
 
 const planStyles = {
   starter: { gradient: 'from-emerald-400 to-teal-500', bg: 'bg-emerald-50', icon: 'bi-lightning-charge' },
@@ -17,7 +18,7 @@ function getPlanStyle(name) {
 
 export default function MemberRenewals() {
   const queryClient = useQueryClient()
-  const [selectedPlan, setSelectedPlan] = useState(null)
+  const [flow, setFlow] = useState(null) // { plan, step: 'confirm'|'pay'|'success', renewalId }
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['member-plans'],
@@ -35,9 +36,9 @@ export default function MemberRenewals() {
   })
 
   const renewMutation = useMutation({
-    mutationFn: (planId) => api.post(`/member/renew?plan_id=${planId}&payment_type=full`),
-    onSuccess: () => {
-      setSelectedPlan(null)
+    mutationFn: (planId) => api.post(`/member/renew?plan_id=${planId}&payment_type=full`).then((r) => r.data),
+    onSuccess: (data) => {
+      setFlow((f) => ({ ...f, step: 'pay', renewalId: data.id }))
       queryClient.invalidateQueries({ queryKey: ['member-renewals'] })
     },
   })
@@ -117,7 +118,7 @@ export default function MemberRenewals() {
                 </div>
                 <div className="px-5 pb-4">
                   <button
-                    onClick={() => setSelectedPlan(p)}
+                    onClick={() => setFlow({ plan: p, step: 'confirm' })}
                     className="w-full py-2.5 rounded-xl text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors"
                   >
                     Renew with this plan
@@ -152,39 +153,81 @@ export default function MemberRenewals() {
         </div>
       )}
 
-      {selectedPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-5">
+      {flow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">Confirm Renewal</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Submit a renewal request for this plan</p>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  {flow.step === 'confirm' ? 'Confirm Renewal' : flow.step === 'pay' ? 'Pay with GCash' : 'Payment Submitted'}
+                </h2>
+                {flow.step !== 'success' && <p className="text-xs text-gray-400 mt-0.5">Renew your {flow.plan.name} membership</p>}
               </div>
-              <button onClick={() => setSelectedPlan(null)} className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600">
+              <button onClick={() => setFlow(null)} className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600">
                 <i className="bi bi-x-lg text-sm" />
               </button>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 mb-5">
-              <p className="text-sm text-gray-600">Plan</p>
-              <p className="font-bold text-gray-800">{selectedPlan.name}</p>
-              <p className="text-lg font-bold text-violet-600 mt-1">₱{selectedPlan.price.toLocaleString()} / {selectedPlan.billing_cycle}</p>
-            </div>
+            <div className="p-6">
+              {flow.step === 'confirm' && (
+                <div>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-5">
+                    <p className="text-sm text-gray-600">Plan</p>
+                    <p className="font-bold text-gray-800">{flow.plan.name}</p>
+                    <p className="text-lg font-bold text-violet-600 mt-1">₱{flow.plan.price.toLocaleString()} / {flow.plan.billing_cycle}</p>
+                  </div>
 
-            <p className="text-xs text-gray-500 mb-4">A pending renewal request will be sent to the admin for approval.</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Your renewal will be paid online via GCash and activated once an admin verifies your payment.
+                  </p>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => renewMutation.mutate(selectedPlan.id)}
-                disabled={renewMutation.isPending}
-                className="bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
-              >
-                {renewMutation.isPending ? 'Submitting...' : 'Submit Request'}
-              </button>
-              <button onClick={() => setSelectedPlan(null)} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => renewMutation.mutate(flow.plan.id)}
+                      disabled={renewMutation.isPending}
+                      className="flex-1 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                    >
+                      {renewMutation.isPending ? 'Creating renewal...' : 'Continue to Payment'}
+                    </button>
+                    <button onClick={() => setFlow(null)} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                  </div>
+                  {renewMutation.isError && <p className="text-sm text-red-500 mt-3">{renewMutation.error?.response?.data?.detail || 'Failed'}</p>}
+                </div>
+              )}
+
+              {flow.step === 'pay' && (
+                <div>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-5 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">{flow.plan.name}</span><span className="font-semibold text-gym-600">₱{flow.plan.price.toLocaleString()}</span></div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Pay the full plan price via GCash below. Your membership renews once an admin approves your payment.
+                    </p>
+                  </div>
+
+                  <GcashPaymentForm
+                    amountPlaceholder={`Exact ${flow.plan.price}`}
+                    hint="Transfer to our GCash account and submit your proof of payment."
+                    extra={(fd) => fd.append('renewal_id', flow.renewalId)}
+                    onSuccess={() => setFlow((f) => ({ ...f, step: 'success' }))}
+                  />
+                </div>
+              )}
+
+              {flow.step === 'success' && (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                    <i className="bi bi-check-lg text-3xl text-emerald-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800">Payment Submitted</h3>
+                  <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+                    Your payment proof is now pending admin verification. Your membership will be renewed once it's approved.
+                  </p>
+                  <button onClick={() => setFlow(null)} className="mt-6 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 transition-colors">
+                    Done
+                  </button>
+                </div>
+              )}
             </div>
-            {renewMutation.isError && <p className="text-sm text-red-500 mt-2">{renewMutation.error?.response?.data?.detail || 'Failed'}</p>}
-            {renewMutation.isSuccess && <p className="text-sm text-emerald-600 mt-2">Renewal request submitted!</p>}
           </div>
         </div>
       )}

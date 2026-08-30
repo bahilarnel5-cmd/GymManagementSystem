@@ -24,7 +24,6 @@ MENUS = [
     {"menu_id": "coaches", "role": "member", "label": "Coaches", "icon": "bi-person-badge", "path": "/member/coaches", "sort_order": 1},
     {"menu_id": "renewals", "role": "member", "label": "Renewals", "icon": "bi-arrow-repeat", "path": "/member/renewals", "sort_order": 2},
     {"menu_id": "profile", "role": "member", "label": "My Profile", "icon": "bi-person-circle", "path": "/member/profile", "sort_order": 3},
-    {"menu_id": "gcash", "role": "member", "label": "Pay Online", "icon": "bi-qr-code-scan", "path": "/member/gcash", "sort_order": 4},
     # Coach
     {"menu_id": "dashboard", "role": "coach", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/coach/dashboard", "sort_order": 0},
     {"menu_id": "students", "role": "coach", "label": "My Students", "icon": "bi-people", "path": "/coach/students", "sort_order": 1},

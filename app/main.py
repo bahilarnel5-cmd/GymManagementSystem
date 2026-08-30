@@ -29,6 +29,7 @@ def ensure_schema():
         "ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS emergency_contact VARCHAR(200)",
         "ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(300)",
         "ALTER TABLE gym_payment_submissions ADD COLUMN IF NOT EXISTS enrollment_id UUID",
+        "ALTER TABLE gym_payment_submissions ADD COLUMN IF NOT EXISTS renewal_id UUID",
         "ALTER TABLE gym_coaches ADD COLUMN IF NOT EXISTS email VARCHAR(150)",
     ]
     conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")

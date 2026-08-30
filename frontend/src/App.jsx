@@ -18,7 +18,6 @@ import MemberDashboard from './pages/MemberDashboard'
 import MemberCoaches from './pages/MemberCoaches'
 import MemberRenewals from './pages/MemberRenewals'
 import MemberProfile from './pages/MemberProfile'
-import MemberGcash from './pages/MemberGcash'
 import CoachDashboard from './pages/CoachDashboard'
 import CoachStudents from './pages/CoachStudents'
 import CoachBookings from './pages/CoachBookings'
@@ -66,7 +65,6 @@ function MemberRoutes() {
         <Route path="/member/coaches" element={<MemberCoaches />} />
         <Route path="/member/renewals" element={<MemberRenewals />} />
         <Route path="/member/profile" element={<MemberProfile />} />
-        <Route path="/member/gcash" element={<MemberGcash />} />
         <Route path="*" element={<Navigate to="/member/dashboard" />} />
       </Routes>
     </MemberLayout>

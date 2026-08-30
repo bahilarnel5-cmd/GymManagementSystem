@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
-import { useAuthStore } from '../lib/store'
-
-const GCASH_ACCOUNT_NAME = 'GymManager Suporta'
-const GCASH_ACCOUNT_NUMBER = '0917 123 4567'
+import GcashPaymentForm from '../components/GcashPaymentForm'
 
 const coachColors = [
   { bg: 'bg-violet-500', ring: 'ring-violet-200' },
@@ -188,7 +185,6 @@ export default function MemberCoaches() {
 
 function EnrollModal({ selected, setSelected, onClose }) {
   const queryClient = useQueryClient()
-  const memberId = useAuthStore((s) => s.memberId)
 
   const availableDays = DAYS.filter((d) => (selected.coach.weekly_schedule || {})[d])
 
@@ -204,18 +200,6 @@ function EnrollModal({ selected, setSelected, onClose }) {
     },
   })
 
-  const { mutate: submitPayment, isPending: submitting, isError: payError, error: payErr } = useMutation({
-    mutationFn: (fd) => api.post('/gym_payments/submit', fd).then((r) => r.data),
-    onSuccess: () => {
-      setSelected({ ...selected, step: 'success', paidMsg: 'Your payment proof has been submitted. Enrollment will be activated once an admin verifies your payment.' })
-      queryClient.invalidateQueries({ queryKey: ['member-coaches'] })
-    },
-  })
-
-  const [amount, setAmount] = useState('')
-  const [refLast4, setRefLast4] = useState('')
-  const [file, setFile] = useState(null)
-
   const totalPerDay = selected.coach.hourly_rate
   let total = 0
   if (selected.step === 'payment' || selected.step === 'gcash') {
@@ -230,22 +214,6 @@ function EnrollModal({ selected, setSelected, onClose }) {
         ? selected.days.filter((x) => x !== d)
         : [...selected.days, d],
     })
-  }
-
-  const handleRef = (v) => {
-    const digits = v.replace(/\D/g, '')
-    setRefLast4(digits.slice(0, 4))
-  }
-
-  const handleGcashSubmit = (e) => {
-    e.preventDefault()
-    const fd = new FormData()
-    fd.append('member_id', memberId)
-    fd.append('enrollment_id', selected.enrollment.id)
-    fd.append('amount_paid', String(parseFloat(amount) || 0))
-    fd.append('ref_last4', refLast4)
-    fd.append('file', file)
-    submitPayment(fd)
   }
 
   const errMsg = (err) => err?.response?.data?.detail || 'Something went wrong'
@@ -389,59 +357,18 @@ function EnrollModal({ selected, setSelected, onClose }) {
                 {selected.method === 'down_payment' && (
                   <div className="flex justify-between mt-1"><span className="text-gray-500">Minimum down (30%)</span><span className="font-medium text-gray-700">₱{downMin.toLocaleString()}</span></div>
                 )}
-                <p className="text-xs text-gray-400 mt-2">
-                  {selected.method === 'full_payment' ? 'Enter the full total amount in GCash below.' : 'Enter any amount from the 30% minimum up to the total.'}
-                </p>
               </div>
 
-              <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 mb-4">
-                <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm mb-2"><i className="bi bi-phone" /> Scan to Pay</div>
-                <div className="w-36 h-36 mx-auto bg-white rounded-xl border-2 border-dashed border-blue-200 flex items-center justify-center mb-3">
-                  <i className="bi bi-qr-code text-6xl text-blue-300" />
-                </div>
-                <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm">
-                  <p className="text-sm font-semibold text-gray-800">{GCASH_ACCOUNT_NAME}</p>
-                  <p className="text-xs text-gray-500">{GCASH_ACCOUNT_NUMBER}</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleGcashSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Amount Paid (₱)</label>
-                  <input
-                    type="number" min="0" step="0.01" placeholder={selected.method === 'full_payment' ? `Full ${total}` : `Min ${downMin}`}
-                    value={amount} onChange={(e) => setAmount(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Last 4 Digits of Reference No.</label>
-                  <input
-                    type="text" inputMode="numeric" placeholder="e.g. 1234"
-                    value={refLast4} onChange={(e) => handleRef(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Proof Screenshot</label>
-                  <input
-                    type="file" accept="image/*"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-gray-600 file:mr-3 file:px-4 file:py-2 file:rounded-xl file:border-0 file:bg-violet-50 file:text-violet-700 file:text-sm file:font-medium hover:file:bg-violet-100"
-                    required
-                  />
-                </div>
-                {payError && <p className="text-sm text-red-500">{errMsg(payErr)}</p>}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full bg-violet-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Payment'}
-                </button>
-              </form>
+              <GcashPaymentForm
+                accent="violet"
+                amountPlaceholder={selected.method === 'full_payment' ? `Full ${total}` : `Min ${downMin}`}
+                hint={selected.method === 'full_payment' ? 'Enter the full total amount in GCash below.' : 'Enter any amount from the 30% minimum up to the total.'}
+                extra={(fd) => fd.append('enrollment_id', selected.enrollment.id)}
+                onSuccess={() => {
+                  setSelected({ ...selected, step: 'success', paidMsg: 'Your payment proof has been submitted. Enrollment will be activated once an admin verifies your payment.' })
+                  queryClient.invalidateQueries({ queryKey: ['member-coaches'] })
+                }}
+              />
             </div>
           )}
         </div>
