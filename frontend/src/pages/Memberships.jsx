@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 
 export default function Memberships() {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -18,6 +19,31 @@ export default function Memberships() {
     queryFn: () => api.get('/gym_memberships/expiring').then((r) => r.data),
   })
 
+  const confirmCash = useMutation({
+    mutationFn: (id) => api.patch(`/gym_memberships/${id}/confirm-cash`).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memberships'] })
+      queryClient.invalidateQueries({ queryKey: ['memberships-expiring'] })
+    },
+  })
+
+  const { data: renewalsData } = useQuery({
+    queryKey: ['renewal-requests'],
+    queryFn: () => api.get('/gym_renewal_requests/?per_page=100').then((r) => r.data),
+  })
+
+  const confirmRenewalCash = useMutation({
+    mutationFn: (id) => api.put(`/gym_renewal_requests/${id}/complete`).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['renewal-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['memberships'] })
+    },
+  })
+
+  const cashRenewals = (renewalsData || []).filter(
+    (r) => r.payment_method === 'cash' && r.payment_status === 'cash_pending' && r.status === 'pending',
+  )
+
   const expiring = expiringData?.items || []
 
   const statusColor = (s) => {
@@ -25,6 +51,16 @@ export default function Memberships() {
       case 'active': return 'bg-green-100 text-green-700'
       case 'expired': return 'bg-red-100 text-red-700'
       case 'pending_payment': return 'bg-amber-100 text-amber-700'
+      default: return 'bg-gray-100 text-gray-500'
+    }
+  }
+
+  const paymentStatusColor = (s) => {
+    switch (s) {
+      case 'paid': return 'bg-green-100 text-green-700'
+      case 'partially_paid': return 'bg-blue-100 text-blue-700'
+      case 'cash_pending': return 'bg-orange-100 text-orange-700'
+      case 'pending': return 'bg-amber-100 text-amber-700'
       default: return 'bg-gray-100 text-gray-500'
     }
   }
@@ -37,6 +73,38 @@ export default function Memberships() {
           <p className="text-sm text-gray-500 mt-1">Member subscriptions — expiring plans are notified automatically</p>
         </div>
       </div>
+
+      {/* Cash renewals awaiting confirmation */}
+      {cashRenewals.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 bg-orange-100/70 border-b border-orange-200">
+            <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center shadow-sm">
+              <i className="bi bi-cash-stack text-white text-xs" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-orange-800">Cash renewals awaiting confirmation ({cashRenewals.length})</p>
+              <p className="text-xs text-orange-600">Member paid in cash — confirm receipt to renew their membership</p>
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {cashRenewals.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 px-5 py-3 border-b border-orange-100 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{r.member_name}</p>
+                  <p className="text-xs text-gray-500">{r.months_selected} month{r.months_selected > 1 ? 's' : ''} · ₱{r.final_amount.toLocaleString()}</p>
+                </div>
+                <button
+                  onClick={() => confirmRenewalCash.mutate(r.id)}
+                  disabled={confirmRenewalCash.isPending}
+                  className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-orange-700 bg-orange-100 border border-orange-300 rounded-lg px-3 py-1.5 hover:bg-orange-200 disabled:opacity-50 transition-colors"
+                >
+                  <i className="bi bi-cash-coin" /> Confirm Cash Received
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Automated expiry notification banner */}
       {expiring.length > 0 && (
@@ -97,6 +165,7 @@ export default function Memberships() {
               <th className="text-left px-5 py-3.5 font-medium">Plan</th>
               <th className="text-left px-5 py-3.5 font-medium">Status</th>
               <th className="text-left px-5 py-3.5 font-medium">Payment</th>
+              <th className="text-left px-5 py-3.5 font-medium">Method</th>
               <th className="text-left px-5 py-3.5 font-medium">Start</th>
               <th className="text-left px-5 py-3.5 font-medium">End</th>
               <th className="text-right px-5 py-3.5 font-medium">Expiry</th>
@@ -104,9 +173,9 @@ export default function Memberships() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-gray-400">Loading...</td></tr>
             ) : data?.items?.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-gray-400">No memberships found</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-gray-400">No memberships found</td></tr>
             ) : (
               data?.items?.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
@@ -123,6 +192,21 @@ export default function Memberships() {
                   <td className="px-5 py-3.5">
                     <p className="text-xs text-gray-500">Due: ₱{m.amount_due.toLocaleString()}</p>
                     <p className="text-xs font-medium text-gym-600">Paid: ₱{m.amount_paid.toLocaleString()}</p>
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${paymentStatusColor(m.payment_status)}`}>
+                      {String(m.payment_status).replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <p className="text-xs font-medium text-gray-700">{m.months_selected} mo · {String(m.payment_method).replace('_', ' ')}</p>
+                    {m.payment_method === 'cash' && m.payment_status === 'cash_pending' && (
+                      <button
+                        onClick={() => confirmCash.mutate(m.id)}
+                        disabled={confirmCash.isPending}
+                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                      >
+                        <i className="bi bi-cash-stack" /> Confirm Cash Received
+                      </button>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-gray-500 text-xs">{m.start_date}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-xs">{m.end_date}</td>
@@ -167,6 +251,21 @@ export default function Memberships() {
                 <p>Due: ₱{m.amount_due.toLocaleString()}</p>
                 <p className="text-gym-600 font-medium">Paid: ₱{m.amount_paid.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 col-span-2">{m.start_date} — {m.end_date}</p>
+                <p className="text-xs text-gray-500 col-span-2">
+                  {m.months_selected} mo · {String(m.payment_method).replace('_', ' ')} ·{' '}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${paymentStatusColor(m.payment_status)}`}>
+                    {String(m.payment_status).replace('_', ' ')}
+                  </span>
+                </p>
+                {m.payment_method === 'cash' && m.payment_status === 'cash_pending' && (
+                  <button
+                    onClick={() => confirmCash.mutate(m.id)}
+                    disabled={confirmCash.isPending}
+                    className="mt-1 col-span-2 inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                  >
+                    <i className="bi bi-cash-stack" /> Confirm Cash Received
+                  </button>
+                )}
               </div>
             </div>
           ))

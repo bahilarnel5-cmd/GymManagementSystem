@@ -12,7 +12,16 @@ from app.models import (
 from app.auth import require_role
 from app.schemas import MemberBookingCreate, MemberUpdate
 from app.activity import log_action
-from app.pricing import compute_billing, annual_discount_percentage, DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE
+from app.pricing import (
+    compute_billing,
+    compute_duration_pricing,
+    annual_discount_percentage,
+    duration_discount_percentage,
+    normalize_payment_method,
+    DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE,
+    ensure_duration_discounts,
+    DEFAULT_DURATION_DISCOUNTS,
+)
 
 router = APIRouter(prefix="/member", tags=["member_portal"])
 
@@ -377,7 +386,10 @@ def cancel_booking(booking_id: uuid.UUID, payload: dict = Depends(require_role("
 @router.get("/plans")
 def list_plans_for_member(payload: dict = Depends(require_role("member")), db: Session = Depends(get_db)):
     org = payload.get("organization_id")
-    discount_pct = annual_discount_percentage(db, uuid.UUID(org)) if org else DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE
+    org_id = uuid.UUID(org) if org else None
+    discount_pct = annual_discount_percentage(db, org_id) if org_id else DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE
+    if org_id:
+        ensure_duration_discounts(db, org_id)
     plans = db.query(GymMembershipPlan).filter(GymMembershipPlan.is_active == True).order_by(GymMembershipPlan.price.asc()).all()
     return [
         {
@@ -387,6 +399,14 @@ def list_plans_for_member(payload: dict = Depends(require_role("member")), db: S
             "billing_cycle": p.billing_cycle,
             "features": p.features,
             "annual_discount_percentage": discount_pct,
+            "pricing_months": [
+                compute_duration_pricing(
+                    p.price,
+                    m,
+                    duration_discount_percentage(db, org_id, m) if org_id else float(DEFAULT_DURATION_DISCOUNTS.get(m, 0)),
+                )
+                for m in range(1, 13)
+            ],
             **compute_billing(p.price, "annual", discount_pct),
         }
         for p in plans
@@ -398,6 +418,8 @@ def request_renewal(
     plan_id: uuid.UUID = Query(...),
     payment_type: str = Query("full"),
     billing_cycle: str = Query("monthly"),
+    months: int = Query(1),
+    payment_method: str = Query("full_payment"),
     payload: dict = Depends(require_role("member")),
     db: Session = Depends(get_db),
 ):
@@ -420,16 +442,31 @@ def request_renewal(
     if not current_membership:
         raise HTTPException(status_code=400, detail="No existing membership found")
 
-    pricing = compute_billing(plan.price, billing_cycle, annual_discount_percentage(db, current_membership.organization_id))
+    months = int(months)
+    if months < 1 or months > 12:
+        raise HTTPException(status_code=422, detail="Months must be between 1 and 12")
+    # Legacy callers that pass billing_cycle=annual without a specific month
+    # count keep getting the annual (12-month) quote.
+    if billing_cycle == "annual" and months == 1:
+        months = 12
+    pay_method = normalize_payment_method(payment_method)
+    org_id = current_membership.organization_id
+    ensure_duration_discounts(db, org_id)
+
+    pricing = compute_duration_pricing(plan.price, months, duration_discount_percentage(db, org_id, months))
+    payment_status = "cash_pending" if pay_method == "cash" else "pending"
 
     renewal = GymRenewalRequest(
         id=uuid.uuid4(),
-        organization_id=current_membership.organization_id,
+        organization_id=org_id,
         member_id=mid,
         membership_id=current_membership.id,
         requested_date=datetime.now(timezone.utc),
         payment_type=payment_type,
         billing_cycle=pricing["billing_cycle"],
+        months_selected=pricing["months"],
+        payment_method=pay_method,
+        payment_status=payment_status,
         amount=pricing["final_amount"],
         discount_applied=pricing["discount_applied"],
         final_amount=pricing["final_amount"],
@@ -443,9 +480,15 @@ def request_renewal(
     return {
         "id": str(renewal.id),
         "amount": float(renewal.amount),
+        "months": renewal.months_selected,
         "billing_cycle": renewal.billing_cycle,
+        "payment_method": renewal.payment_method,
+        "payment_status": renewal.payment_status,
+        "discount_percentage": pricing["discount_percentage"],
         "discount_applied": float(renewal.discount_applied or 0),
         "original_total": pricing["original_total"],
+        "final_amount": float(renewal.final_amount),
+        "amount_saved": pricing["amount_saved"],
         "message": "Renewal request submitted",
     }
 
@@ -471,6 +514,9 @@ def list_my_renewals(payload: dict = Depends(require_role("member")), db: Sessio
             "requested_date": r.requested_date.isoformat(),
             "payment_type": r.payment_type,
             "billing_cycle": r.billing_cycle,
+            "months_selected": r.months_selected,
+            "payment_method": r.payment_method,
+            "payment_status": r.payment_status,
             "amount": float(r.amount),
             "discount_applied": float(r.discount_applied or 0),
             "final_amount": float(r.final_amount),

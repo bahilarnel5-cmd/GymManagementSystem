@@ -7,7 +7,8 @@ from app.database import get_db
 from app.models import GymRenewalRequest, GymMembership, GymMember, GymPayment
 from app.auth import require_role
 from app.schemas import RenewalRequestCreate, RenewalCompleteIn
-from app.pricing import billing_cycle_duration_days, normalize_billing_cycle
+from app.activity import log_action
+from app.pricing import months_duration_days
 
 router = APIRouter(prefix="/gym_renewal_requests", tags=["renewals"])
 
@@ -33,6 +34,11 @@ def list_renewal_requests(
             "membership_id": str(r.membership_id),
             "requested_date": r.requested_date.isoformat(),
             "payment_type": r.payment_type,
+            "billing_cycle": r.billing_cycle,
+            "months_selected": r.months_selected,
+            "payment_method": r.payment_method,
+            "payment_status": r.payment_status,
+            "final_amount": float(r.final_amount),
             "amount": float(r.amount),
             "status": r.status,
         }
@@ -65,22 +71,31 @@ def create_renewal_request(payload_in: RenewalRequestCreate, payload: dict = Dep
 
 @router.put("/{request_id}/complete")
 def complete_renewal(request_id: uuid.UUID, payload_in: RenewalCompleteIn, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
-    req = db.query(GymRenewalRequest).filter(GymRenewalRequest.id == request_id).first()
+    # FOR UPDATE: serialize concurrent confirms so only one can complete the
+    # renewal and write an activity-log entry.
+    req = db.query(GymRenewalRequest).filter(GymRenewalRequest.id == request_id).with_for_update().first()
     if not req:
         raise HTTPException(status_code=404, detail="Renewal request not found")
+    if req.payment_method != "cash":
+        raise HTTPException(status_code=422, detail="Complete applies only to cash renewals")
+    if req.payment_status != "cash_pending" or req.status != "pending":
+        raise HTTPException(status_code=400, detail="Renewal is not awaiting cash confirmation")
 
     membership = db.query(GymMembership).filter(GymMembership.id == req.membership_id).first()
     if not membership:
         raise HTTPException(status_code=404, detail="Membership not found")
 
-    cycle = normalize_billing_cycle(req.billing_cycle)
-    extend_days = billing_cycle_duration_days(cycle)
+    extend_days = months_duration_days(req.months_selected)
 
     membership.end_date = membership.end_date + timedelta(days=extend_days)
     membership.status = "active"
-    membership.billing_cycle = cycle
+    membership.billing_cycle = req.billing_cycle
+    membership.months_selected = req.months_selected
+    membership.payment_method = req.payment_method
+    membership.payment_status = "paid"
+    membership.amount_paid = float(req.final_amount)
     membership.discount_applied = req.discount_applied
-    membership.final_amount = float(req.amount)
+    membership.final_amount = float(req.final_amount)
     membership.updated_at = datetime.now(timezone.utc)
 
     receipt_no = f"OR-{uuid.uuid4().hex[:6].upper()}"
@@ -90,21 +105,33 @@ def complete_renewal(request_id: uuid.UUID, payload_in: RenewalCompleteIn, paylo
         member_id=req.member_id,
         membership_id=req.membership_id,
         receipt_no=receipt_no,
-        item_description=f"Membership renewal ({req.payment_type}, {cycle})",
-        amount=req.amount,
+        item_description=f"Membership renewal ({req.payment_method}, {req.months_selected} month(s))",
+        amount=float(req.final_amount),
         payment_method="cash",
         status="paid",
         discount_amount=float(req.discount_applied or 0),
-        discount_description="Annual billing discount" if (req.discount_applied and cycle == "annual") else None,
+        discount_description=f"Duration discount ({req.months_selected} month(s))" if req.discount_applied else None,
         paid_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
     db.add(new_payment)
 
+    req.payment_status = "paid"
     req.status = "completed"
     req.updated_at = datetime.now(timezone.utc)
 
+    member = db.query(GymMember).filter(GymMember.id == req.member_id).first()
+    db.commit()
+
+    log_action(
+        db, req.organization_id, "confirm_cash", "renewal_request", entity_id=req.id,
+        description=(
+            f"Admin confirmed cash renewal for {member.full_name if member else 'member'} "
+            f"({req.months_selected} month(s), ₱{float(req.final_amount):,.2f})"
+        ),
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
     db.commit()
     return {"completed": True, "new_end_date": membership.end_date.isoformat()}
 

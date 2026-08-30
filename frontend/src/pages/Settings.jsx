@@ -435,6 +435,7 @@ function PlansManager({ orgId, queryClient }) {
   const [editing, setEditing] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
   const [discountInput, setDiscountInput] = useState(null)
+  const [durationDiscounts, setDurationDiscounts] = useState(null)
 
   const { data: plansData, isLoading } = useQuery({
     queryKey: ['plans'],
@@ -446,11 +447,22 @@ function PlansManager({ orgId, queryClient }) {
     queryFn: () => api.get('/gym_settings/annual-discount').then((r) => r.data),
   })
 
+  const { data: durationData } = useQuery({
+    queryKey: ['settings-duration-discounts'],
+    queryFn: () => api.get('/gym_settings/duration-discounts').then((r) => r.data),
+  })
+
   useEffect(() => {
     if (settings != null && discountInput == null) {
       setDiscountInput(String(settings.annual_discount_percentage))
     }
   }, [settings, discountInput])
+
+  useEffect(() => {
+    if (durationData != null && durationDiscounts == null) {
+      setDurationDiscounts(durationData.items)
+    }
+  }, [durationData, durationDiscounts])
 
   const discountMutation = useMutation({
     mutationFn: (value) =>
@@ -461,6 +473,23 @@ function PlansManager({ orgId, queryClient }) {
       queryClient.invalidateQueries({ queryKey: ['member-plans'] })
     },
   })
+
+  const durationMutation = useMutation({
+    mutationFn: (items) =>
+      api.patch('/gym_settings/duration-discounts', { items }).then((r) => r.data),
+    onSuccess: (data) => {
+      const items = (data.items || []).map((i) => ({ ...i, discount_percentage: String(i.discount_percentage) }))
+      setDurationDiscounts(items)
+      queryClient.setQueryData(['settings-duration-discounts'], data)
+      queryClient.invalidateQueries({ queryKey: ['member-plans'] })
+    },
+  })
+
+  const setMonthDiscount = (months, value) => {
+    setDurationDiscounts((prev) =>
+      (prev || []).map((i) => (i.months === months ? { ...i, discount_percentage: value } : i)),
+    )
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/gym_membership_plans/${id}`),
@@ -503,6 +532,50 @@ function PlansManager({ orgId, queryClient }) {
         </div>
         {discountMutation.isError && (
           <p className="text-sm text-red-500 mt-2">{discountMutation.error?.response?.data?.detail || 'Failed to update'}</p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800">Duration Discounts</h3>
+            <p className="text-xs text-gray-400 mt-1">
+              Members pick 1-12 months and each duration can offer its own discount. Set 0% for no discount.
+            </p>
+          </div>
+          <button
+            onClick={() => durationMutation.mutate(
+              (durationDiscounts || []).map((i) => ({ months: i.months, discount_percentage: parseFloat(i.discount_percentage) || 0 })),
+            )}
+            disabled={durationMutation.isPending || !durationDiscounts}
+            className="px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {durationMutation.isPending ? 'Saving...' : 'Save Discounts'}
+          </button>
+        </div>
+        {durationDiscounts && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {durationDiscounts.map((d) => (
+              <div key={d.months} className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                <span className="text-xs font-medium text-gray-600 flex-1">{d.months} month{d.months > 1 ? 's' : ''}</span>
+                <div className="flex items-center bg-white border border-gray-200 rounded-lg px-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.5"
+                    value={d.discount_percentage ?? ''}
+                    onChange={(e) => setMonthDiscount(d.months, e.target.value)}
+                    className="w-14 py-1.5 bg-transparent text-sm font-semibold text-gray-800 outline-none"
+                  />
+                  <span className="text-sm text-gray-400">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {durationMutation.isError && (
+          <p className="text-sm text-red-500 mt-3">{durationMutation.error?.response?.data?.detail || 'Failed to update duration discounts'}</p>
         )}
       </div>
 

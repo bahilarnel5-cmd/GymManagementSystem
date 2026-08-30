@@ -8,7 +8,14 @@ from app.database import get_db
 from app.models import GymMembership, GymMember, GymMembershipPlan
 from app.auth import require_role
 from app.schemas import MembershipCreate, MembershipUpdate, AvailPlanIn
-from app.pricing import compute_billing, annual_discount_percentage, billing_cycle_duration_days, normalize_billing_cycle
+from app.activity import log_action
+from app.pricing import (
+    compute_duration_pricing,
+    duration_discount_percentage,
+    normalize_payment_method,
+    months_duration_days,
+    ensure_duration_discounts,
+)
 
 router = APIRouter(prefix="/gym_memberships", tags=["memberships"])
 
@@ -51,8 +58,14 @@ def list_memberships(
             "plan_name": plan.name,
             "status": gm.status,
             "payment_type": gm.payment_type,
+            "billing_cycle": gm.billing_cycle,
+            "months_selected": gm.months_selected,
+            "payment_method": gm.payment_method,
+            "payment_status": gm.payment_status,
             "amount_due": float(gm.amount_due),
             "amount_paid": float(gm.amount_paid),
+            "discount_applied": float(gm.discount_applied or 0),
+            "final_amount": float(gm.final_amount),
             "start_date": gm.start_date.isoformat(),
             "end_date": gm.end_date.isoformat(),
             "days_left": days_left,
@@ -144,11 +157,17 @@ def avail_plan(payload_in: AvailPlanIn, payload: dict = Depends(require_role("ad
     if not plan or plan.organization_id != org_id:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    cycle = normalize_billing_cycle(payload_in.billing_cycle)
-    pricing = compute_billing(plan.price, cycle, annual_discount_percentage(db, org_id))
+    months = int(payload_in.months or 1)
+    if months < 1 or months > 12:
+        raise HTTPException(status_code=422, detail="Months must be between 1 and 12")
+    pay_method = normalize_payment_method(payload_in.payment_method)
+    ensure_duration_discounts(db, org_id)
+
+    pricing = compute_duration_pricing(plan.price, months, duration_discount_percentage(db, org_id, months))
+    payment_status = "cash_pending" if pay_method == "cash" else "pending"
 
     start = datetime.now(timezone.utc)
-    end = start + timedelta(days=billing_cycle_duration_days(cycle))
+    end = start + timedelta(days=months_duration_days(months))
 
     new_membership = GymMembership(
         id=uuid.uuid4(),
@@ -158,6 +177,9 @@ def avail_plan(payload_in: AvailPlanIn, payload: dict = Depends(require_role("ad
         status="pending_payment",
         payment_type=payload_in.payment_type,
         billing_cycle=pricing["billing_cycle"],
+        months_selected=pricing["months"],
+        payment_method=pay_method,
+        payment_status=payment_status,
         amount_due=pricing["final_amount"],
         discount_applied=pricing["discount_applied"],
         final_amount=pricing["final_amount"],
@@ -173,11 +195,62 @@ def avail_plan(payload_in: AvailPlanIn, payload: dict = Depends(require_role("ad
     return {
         "id": str(new_membership.id),
         "amount": float(new_membership.amount_due),
+        "months": new_membership.months_selected,
         "billing_cycle": new_membership.billing_cycle,
+        "payment_method": new_membership.payment_method,
+        "payment_status": new_membership.payment_status,
+        "discount_percentage": pricing["discount_percentage"],
         "discount_applied": float(new_membership.discount_applied or 0),
         "original_total": pricing["original_total"],
         "final_amount": float(new_membership.final_amount),
+        "amount_saved": pricing["amount_saved"],
         "message": "Plan availed. Complete payment to activate membership.",
+    }
+
+
+@router.patch("/{membership_id}/confirm-cash")
+def confirm_cash(
+    membership_id: uuid.UUID,
+    payload: dict = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    # FOR UPDATE: serialize concurrent confirms so only one can transition the
+    # cash_pending membership and write an activity-log entry.
+    gm = db.query(GymMembership).filter(GymMembership.id == membership_id).with_for_update().first()
+    if not gm:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    if str(gm.organization_id) != str(payload.get("organization_id")):
+        raise HTTPException(status_code=403, detail="Not authorized for this action")
+
+    if gm.payment_method != "cash":
+        raise HTTPException(status_code=422, detail="Confirm-cash only applies to cash memberships")
+    if gm.payment_status != "cash_pending":
+        raise HTTPException(status_code=400, detail="Membership is not awaiting cash confirmation")
+
+    gm.payment_status = "paid"
+    gm.amount_paid = float(gm.final_amount)
+    gm.status = "active"
+    gm.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(gm)
+
+    member = db.query(GymMember).filter(GymMember.id == gm.member_id).first()
+    plan = db.query(GymMembershipPlan).filter(GymMembershipPlan.id == gm.plan_id).first()
+    log_action(
+        db, gm.organization_id, "confirm_cash", "membership", entity_id=gm.id,
+        description=(
+            f"Admin confirmed cash payment for {member.full_name if member else 'member'}'s "
+            f"membership ({plan.name if plan else 'plan'}, {gm.months_selected} month(s))"
+        ),
+        actor_user_id=payload.get("sub"), actor_name="Admin", actor_role="admin",
+    )
+    db.commit()
+
+    return {
+        "id": str(gm.id),
+        "status": gm.status,
+        "payment_status": gm.payment_status,
+        "amount_paid": float(gm.amount_paid),
     }
 
 

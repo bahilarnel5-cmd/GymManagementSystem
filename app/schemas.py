@@ -140,6 +140,9 @@ class MembershipCreate(BaseModel):
     member_id: uuid.UUID
     plan_id: uuid.UUID
     payment_type: str = "full"
+    months_selected: int = 1
+    payment_method: str = "full_payment"
+    payment_status: str = "pending"
     amount_due: float = 0
     amount_paid: float = 0
     start_date: date
@@ -151,6 +154,9 @@ class MembershipUpdate(BaseModel):
     plan_id: Optional[uuid.UUID] = None
     status: Optional[str] = None
     payment_type: Optional[str] = None
+    months_selected: Optional[int] = None
+    payment_method: Optional[str] = None
+    payment_status: Optional[str] = None
     amount_due: Optional[float] = None
     amount_paid: Optional[float] = None
     start_date: Optional[date] = None
@@ -292,6 +298,15 @@ class AnnualDiscountUpdate(BaseModel):
     annual_discount_percentage: float = Field(...)
 
 
+class DurationDiscountItem(BaseModel):
+    months: int = Field(ge=1, le=12)
+    discount_percentage: float = Field(ge=0, le=100)
+
+
+class DurationDiscountsUpdate(BaseModel):
+    items: list[DurationDiscountItem]
+
+
 class SettingsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -342,6 +357,8 @@ class AvailPlanIn(BaseModel):
     plan_id: uuid.UUID
     payment_type: str = "full"
     billing_cycle: str = "monthly"
+    months: int = 1
+    payment_method: str = "full_payment"
     amount_due: float = 0
 
 

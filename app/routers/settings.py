@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GymSettings, Organization
+from app.models import GymSettings, Organization, GymDurationDiscount
 from app.auth import require_role
-from app.pricing import DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE
-from app.schemas import SettingsCreate, SettingsUpdate, AnnualDiscountUpdate
+from app.pricing import DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE, DEFAULT_DURATION_DISCOUNTS
+from app.schemas import SettingsCreate, SettingsUpdate, AnnualDiscountUpdate, DurationDiscountsUpdate
 
 router = APIRouter(prefix="/gym_settings", tags=["settings"])
 
@@ -46,6 +46,81 @@ def update_annual_discount(body: AnnualDiscountUpdate, payload: dict = Depends(r
     db.commit()
     db.refresh(settings)
     return {"annual_discount_percentage": float(settings.annual_discount_percentage)}
+
+
+@router.get("/duration-discounts")
+def get_duration_discounts(payload: dict = Depends(require_role("admin", "member")), db: Session = Depends(get_db)):
+    org = payload.get("organization_id")
+    if not org:
+        raise HTTPException(status_code=400, detail="Missing organization")
+    org_id = uuid.UUID(org)
+    from app.pricing import ensure_duration_discounts
+    ensure_duration_discounts(db, org_id)
+    rows = (
+        db.query(GymDurationDiscount)
+        .filter(GymDurationDiscount.organization_id == org_id)
+        .order_by(GymDurationDiscount.months.asc())
+        .all()
+    )
+    by_month = {r.months: r for r in rows}
+    return {
+        "items": [
+            {
+                "months": m,
+                "discount_percentage": float(by_month[m].discount_percentage)
+                if m in by_month and by_month[m].discount_percentage is not None
+                else float(DEFAULT_DURATION_DISCOUNTS[m]),
+            }
+            for m in sorted(DEFAULT_DURATION_DISCOUNTS)
+        ]
+    }
+
+
+@router.patch("/duration-discounts")
+def update_duration_discounts(body: DurationDiscountsUpdate, payload: dict = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    org = payload.get("organization_id")
+    if not org:
+        raise HTTPException(status_code=400, detail="Missing organization")
+    org_id = uuid.UUID(org)
+    from app.pricing import ensure_duration_discounts
+    ensure_duration_discounts(db, org_id)
+
+    now = datetime.now(timezone.utc)
+    admin_id = payload.get("sub")
+    seen = set()
+    for item in body.items:
+        seen.add(item.months)
+        row = (
+            db.query(GymDurationDiscount)
+            .filter(GymDurationDiscount.organization_id == org_id, GymDurationDiscount.months == item.months)
+            .first()
+        )
+        if not row:
+            row = GymDurationDiscount(
+                id=uuid.uuid4(),
+                organization_id=org_id,
+                months=item.months,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(row)
+        row.discount_percentage = round(item.discount_percentage, 2)
+        row.updated_by = uuid.UUID(admin_id) if admin_id else None
+        row.updated_at = now
+    db.commit()
+
+    rows = (
+        db.query(GymDurationDiscount)
+        .filter(GymDurationDiscount.organization_id == org_id)
+        .order_by(GymDurationDiscount.months.asc())
+        .all()
+    )
+    return {
+        "items": [
+            {"months": r.months, "discount_percentage": float(r.discount_percentage)}
+            for r in rows
+        ]
+    }
 
 
 @router.get("/{organization_id}")

@@ -79,6 +79,9 @@ class GymMembership(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     payment_type: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
     billing_cycle: Mapped[str] = mapped_column(String(20), nullable=False, default="monthly")
+    months_selected: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    payment_method: Mapped[str] = mapped_column(String(20), nullable=False, default="full_payment")
+    payment_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     amount_due: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     amount_paid: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     discount_applied: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -168,6 +171,23 @@ class GymSettings(Base):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
+class GymDurationDiscount(Base):
+    """Per-organization discount applied when a member prepays several months
+    of membership. months runs 1..12 and is the storefront's month selector."""
+    __tablename__ = "gym_duration_discounts"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "months", name="uq_gym_duration_discount_org_months"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    months: Mapped[int] = mapped_column(Integer, nullable=False)
+    discount_percentage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+
 class GymUser(Base):
     __tablename__ = "gym_users"
     __table_args__ = (
@@ -195,6 +215,9 @@ class GymRenewalRequest(Base):
     requested_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     payment_type: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
     billing_cycle: Mapped[str] = mapped_column(String(20), nullable=False, default="monthly")
+    months_selected: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    payment_method: Mapped[str] = mapped_column(String(20), nullable=False, default="full_payment")
+    payment_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     discount_applied: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     final_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)

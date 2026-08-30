@@ -35,9 +35,15 @@ def ensure_schema():
         "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly'",
         "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS discount_applied NUMERIC(10, 2)",
         "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10, 2) NOT NULL DEFAULT 0",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS months_selected INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'full_payment'",
+        "ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending'",
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly'",
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS discount_applied NUMERIC(10, 2)",
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10, 2) NOT NULL DEFAULT 0",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS months_selected INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'full_payment'",
+        "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending'",
     ]
     conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
     try:
@@ -54,10 +60,12 @@ ensure_schema()
 
 # Seed default role-based sidebar menus for every existing org.
 from app.models import Organization  # noqa: E402
+from app.pricing import ensure_duration_discounts  # noqa: E402
 
 with SessionLocal() as db:
     for org in db.query(Organization).all():
         seed_role_menus(db, org.id)
+        ensure_duration_discounts(db, org.id)
 
 # Ensure the change-request proof storage bucket exists (no-op if not configured).
 storage.ensure_bucket(storage.CHANGE_REQUEST_BUCKET)
