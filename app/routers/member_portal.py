@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import (
     GymMember, GymMembership, GymMembershipPlan, GymPayment,
     GymPtSession, GymCoach, GymRenewalRequest, CoachSchedule, MemberBooking,
+    GymCoachEnrollment,
 )
 from app.auth import require_role
 from app.schemas import MemberBookingCreate, MemberUpdate
@@ -113,6 +114,15 @@ def member_dashboard(payload: dict = Depends(require_role("admin", "member")), d
         .all()
     )
 
+    recent_enrollments = (
+        db.query(GymCoachEnrollment, GymCoach)
+        .join(GymCoach, GymCoachEnrollment.coach_id == GymCoach.id)
+        .filter(GymCoachEnrollment.member_id == mid)
+        .order_by(GymCoachEnrollment.enrolled_at.desc())
+        .limit(10)
+        .all()
+    )
+
     total_bookings = db.query(MemberBooking).filter(MemberBooking.member_id == mid, MemberBooking.status == "active").count()
     total_payments = db.query(GymPayment).filter(GymPayment.member_id == mid, GymPayment.status == "paid").count()
 
@@ -154,6 +164,21 @@ def member_dashboard(payload: dict = Depends(require_role("admin", "member")), d
                 "status": b.status,
             }
             for b, c in recent_bookings
+        ],
+        "recent_enrollments": [
+            {
+                "id": str(e.id),
+                "coach_name": c.full_name,
+                "coach_specialization": c.specialization,
+                "selected_day_names": [DAY_NAMES[d] for d in (e.selected_days or []) if 0 <= d < 7],
+                "payment_method": e.payment_method,
+                "total_amount": float(e.total_amount),
+                "amount_paid": float(e.amount_paid),
+                "payment_status": e.payment_status,
+                "enrollment_status": e.enrollment_status,
+                "enrolled_at": e.enrolled_at.isoformat(),
+            }
+            for e, c in recent_enrollments
         ],
         "stats": {
             "total_bookings": total_bookings,

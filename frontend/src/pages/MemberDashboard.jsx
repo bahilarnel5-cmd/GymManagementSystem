@@ -41,6 +41,7 @@ export default function MemberDashboard() {
   const membership = data?.membership
   const payments = data?.recent_payments || []
   const bookings = data?.recent_bookings || []
+  const enrollments = data?.recent_enrollments || []
 
   return (
     <div>
@@ -143,6 +144,44 @@ export default function MemberDashboard() {
                   }`}>
                     {b.status}
                   </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      <div className="bg-white rounded-2xl shadow-sm p-6 lg:col-span-2">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Coach Availments</h2>
+          <div className="space-y-3">
+            {enrollments.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-4">No coach availments yet</p>
+            ) : (
+              enrollments.map((e) => (
+                <div key={e.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 border-b last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{e.coach_name}</p>
+                    <p className="text-xs text-gray-400">
+                      {e.coach_specialization || 'Coach'}
+                      {e.selected_day_names.length > 0 ? ` · ${e.selected_day_names.join(', ')}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 sm:shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-800">₱{e.total_amount.toLocaleString()}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {e.payment_status === 'cash_pending' ? 'Awaiting cash confirmation' :
+                         e.payment_status === 'pending' ? 'Awaiting GCash approval' :
+                         e.payment_status === 'partially_paid' ? `Paid ₱${e.amount_paid.toLocaleString()} (partial)` :
+                         `Paid ₱${e.amount_paid.toLocaleString()}`}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                      e.enrollment_status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                      e.enrollment_status === 'pending_payment' ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {e.enrollment_status === 'pending_payment' ? 'Pending Payment' : e.enrollment_status}
+                    </span>
+                  </div>
                 </div>
               ))
             )}
