@@ -77,6 +77,26 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
     setRefLast4(digits.slice(0, 4))
   }
 
+  const openGcash = () => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (!isMobile) {
+      window.open('https://www.gcash.com', '_blank', 'noopener,noreferrer')
+      return
+    }
+    let opened = false
+    const onBlur = () => { opened = true }
+    window.addEventListener('blur', onBlur)
+    const el = document.createElement('a')
+    el.href = 'gcash://'
+    document.body.appendChild(el)
+    el.click()
+    el.remove()
+    setTimeout(() => {
+      window.removeEventListener('blur', onBlur)
+      if (!opened) window.open('https://www.gcash.com', '_blank', 'noopener,noreferrer')
+    }, 900)
+  }
+
   return (
     <div>
       <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 mb-4">
@@ -88,6 +108,16 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
           <p className="text-sm font-semibold text-gray-800">{GCASH_ACCOUNT_NAME}</p>
           <p className="text-xs text-gray-500">{GCASH_ACCOUNT_NUMBER}</p>
         </div>
+        <button
+          type="button"
+          onClick={openGcash}
+          className={`mt-3 w-full ${a.button} text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors`}
+        >
+          <i className="bi bi-phone" /> Open GCash App
+        </button>
+        <p className="text-[11px] text-gray-400 text-center mt-1.5">
+          Opens the GCash app — you'll still need to scan the QR code or enter the number shown above
+        </p>
       </div>
 
       {hint && <p className="text-xs text-gray-400 mb-3">{hint}</p>}
