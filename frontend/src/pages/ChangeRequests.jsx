@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -27,6 +27,9 @@ export default function ChangeRequests() {
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab') || 'pending'
+  // In-flight guard: ignore a second review of the same request (double-click)
+  // instead of firing a duplicate approve/reject request.
+  const inFlight = useRef(new Set())
 
   const setTab = (t) => {
     if (t === 'pending') setParams({})
@@ -55,10 +58,19 @@ export default function ChangeRequests() {
     },
   })
 
+  const review = ({ id, status, admin_notes }) => {
+    if (inFlight.current.has(id)) return
+    inFlight.current.add(id)
+    reviewMutation.mutate(
+      { id, status, admin_notes },
+      { onSettled: () => inFlight.current.delete(id) },
+    )
+  }
+
   const handleReject = (item) => {
     const notes = prompt('Reason for rejection:', '')
-    if (notes === null) return
-    reviewMutation.mutate({ id: item.id, status: 'rejected', admin_notes: notes })
+    if (notes === null || !notes.trim()) return
+    review({ id: item.id, status: 'rejected', admin_notes: notes.trim() })
   }
 
   const tabs = [
@@ -97,7 +109,7 @@ export default function ChangeRequests() {
             ) : !pendingData?.items?.length ? (
               <p className="text-center py-10 text-gray-400">No pending change requests</p>
             ) : (
-              pendingData.items.map((r) => <RequestCard key={r.id} r={r} onApprove={() => reviewMutation.mutate({ id: r.id, status: 'approved' })} onReject={() => handleReject(r)} pending />)
+              pendingData.items.map((r) => <RequestCard key={r.id} r={r} busy={reviewMutation.isPending} onApprove={() => review({ id: r.id, status: 'approved' })} onReject={() => handleReject(r)} pending />)
             )}
           </div>
         </div>
@@ -118,7 +130,7 @@ export default function ChangeRequests() {
   )
 }
 
-function RequestCard({ r, onApprove, onReject, pending }) {
+function RequestCard({ r, onApprove, onReject, pending, busy }) {
   const [viewImage, setViewImage] = useState(null)
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
@@ -178,12 +190,16 @@ function RequestCard({ r, onApprove, onReject, pending }) {
         <div className="mt-4 flex gap-2">
           <button
             onClick={onApprove}
-            disabled={onApprove === undefined}
+            disabled={onApprove === undefined || busy}
             className="px-4 py-2 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-40"
           >
             Approve &amp; Apply
           </button>
-          <button onClick={onReject} className="px-4 py-2 rounded-lg text-xs font-medium bg-red-100 text-red-600 hover:bg-red-200">
+          <button
+            onClick={onReject}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-40"
+          >
             Reject
           </button>
         </div>

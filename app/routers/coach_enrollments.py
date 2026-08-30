@@ -236,7 +236,9 @@ def confirm_cash(
     payload: dict = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ):
-    e = db.query(GymCoachEnrollment).filter(GymCoachEnrollment.id == enrollment_id).first()
+    # FOR UPDATE: serialize concurrent confirms so a double-submit can't race
+    # past the status check and create two identical activity-log entries.
+    e = db.query(GymCoachEnrollment).filter(GymCoachEnrollment.id == enrollment_id).with_for_update().first()
     if not e:
         raise HTTPException(status_code=404, detail="Enrollment not found")
     if str(e.organization_id) != str(payload.get("organization_id")):

@@ -83,7 +83,9 @@ def _change_request_row(req, db):
 
 
 def _get_request(db, request_id, org_id):
-    req = db.query(GymMemberChangeRequest).filter(GymMemberChangeRequest.id == request_id).first()
+    # FOR UPDATE: serialize concurrent reviews so a double-submit can't race
+    # past the status check and create two identical activity-log entries.
+    req = db.query(GymMemberChangeRequest).filter(GymMemberChangeRequest.id == request_id).with_for_update().first()
     if not req:
         raise HTTPException(status_code=404, detail="Change request not found")
     if str(req.organization_id) != str(org_id):

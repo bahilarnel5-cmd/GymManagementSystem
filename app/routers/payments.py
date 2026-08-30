@@ -18,7 +18,9 @@ router = APIRouter(prefix="/gym_payments", tags=["payments"])
 
 
 def _get_submission(db, submission_id: uuid.UUID, org_id):
-    sub = db.query(GymPaymentSubmission).filter(GymPaymentSubmission.id == submission_id).first()
+    # FOR UPDATE: serialize concurrent reviews so a double-submit can't race
+    # past the status check and create two identical activity-log entries.
+    sub = db.query(GymPaymentSubmission).filter(GymPaymentSubmission.id == submission_id).with_for_update().first()
     if not sub:
         raise HTTPException(status_code=404, detail="Payment submission not found")
     if str(sub.organization_id) != str(org_id):
@@ -408,8 +410,8 @@ def review_submission(
 
     sub = _get_submission(db, submission_id, uuid.UUID(payload.get("organization_id")))
 
-    if sub.status == "approved":
-        raise HTTPException(status_code=400, detail="Submission is already approved")
+    if sub.status != "pending":
+        raise HTTPException(status_code=400, detail="Submission is already reviewed")
 
     member = db.query(GymMember).filter(GymMember.id == sub.member_id).first()
 
