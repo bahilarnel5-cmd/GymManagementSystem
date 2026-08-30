@@ -34,7 +34,7 @@ export default function MemberCoaches() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: (id) => api.patch(`/gym_coach_enrollments/${id}/cancel`),
+    mutationFn: (id) => api.delete(`/gym_coach_enrollments/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-coach-enrollments'] }),
   })
 
@@ -155,15 +155,15 @@ export default function MemberCoaches() {
                                       <span className={`px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap ${enrollBadge(en.enrollment_status)}`}>
                                         {String(en.enrollment_status).replace(/_/g, ' ')}
                                       </span>
-                                      {en.enrollment_status === 'pending_payment' && (
-                                        <button
-                                          onClick={() => { if (confirm('Cancel this pending enrollment?')) cancelMutation.mutate(en.id) }}
-                                          disabled={cancelMutation.isPending}
-                                          className="text-xs font-medium text-red-500 hover:text-red-700 whitespace-nowrap"
-                                        >
-                                          Cancel
-                                        </button>
-                                      )}
+{en.enrollment_status === 'pending_payment' && (
+                                            <button
+                                              onClick={() => { if (confirm('Discard this pending enrollment?')) cancelMutation.mutate(en.id) }}
+                                              disabled={cancelMutation.isPending}
+                                              className="text-xs font-medium text-red-500 hover:text-red-700 whitespace-nowrap"
+                                            >
+                                              Remove
+                                            </button>
+                                          )}
                                     </div>
                                   </td>
                                 </tr>
@@ -282,24 +282,24 @@ function EnrollModal({ selected, setSelected }) {
 
   const availableDays = DAYS.filter((d) => (selected.coach.weekly_schedule || {})[d])
 
-  const cancelEnrollment = useMutation({
-    mutationFn: (id) => api.patch(`/gym_coach_enrollments/${id}/cancel`),
+  const discardEnrollment = useMutation({
+    mutationFn: (id) => api.delete(`/gym_coach_enrollments/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-coach-enrollments'] })
     },
   })
 
-  const cancelPending = (id) => {
+  const discardPending = (id) => {
     if (canceledRef.current) return
     canceledRef.current = true
-    cancelEnrollment.mutate(id)
+    discardEnrollment.mutate(id)
   }
 
-  // Full close = cancel and reset the enrollment attempt. No partial state remains.
+  // Full close = exit and discard the enrollment attempt. No partial state remains.
   const closeFlow = () => {
     closedRef.current = true
     if (selected.step === 'gcash' && selected.enrollment) {
-      cancelPending(selected.enrollment.id)
+      discardPending(selected.enrollment.id)
     }
     setSelected(null)
   }
@@ -311,7 +311,7 @@ function EnrollModal({ selected, setSelected }) {
       queryClient.invalidateQueries({ queryKey: ['my-coach-enrollments'] })
       // Modal was closed while the request was in flight: don't resume the flow.
       if (closedRef.current) {
-        if (enrollment.payment_method !== 'cash') cancelPending(enrollment.id)
+        if (enrollment.payment_method !== 'cash') discardPending(enrollment.id)
         return
       }
       if (enrollment.payment_method === 'cash') {

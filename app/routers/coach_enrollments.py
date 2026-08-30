@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
-    GymCoach, GymMember, GymCoachEnrollment, CoachSchedule,
+    GymCoach, GymMember, GymCoachEnrollment, CoachSchedule, GymPaymentSubmission,
 )
 from app.auth import require_role
 from app.schemas import CoachEnrollmentCreate
@@ -227,6 +227,36 @@ def cancel_own_enrollment(
     db.commit()
     db.refresh(e)
     return _enrollment_row(db, e)
+
+
+@router.delete("/{enrollment_id}")
+def discard_pending_enrollment(
+    enrollment_id: uuid.UUID,
+    payload: dict = Depends(require_role("member")),
+    db: Session = Depends(get_db),
+):
+    """Hard-remove a member's aborted pending enrollment so no 'cancelled' row remains.
+
+    Only allowed while the enrollment is still pending and no GCash payment
+    submission references it (a submitted proof can't be silently dropped).
+    """
+    member_id = payload.get("member_id")
+    e = db.query(GymCoachEnrollment).filter(GymCoachEnrollment.id == enrollment_id).with_for_update().first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+    if not member_id or str(e.member_id) != str(member_id):
+        raise HTTPException(status_code=403, detail="Not your enrollment")
+
+    if e.enrollment_status != "pending_payment":
+        raise HTTPException(status_code=400, detail="Only a pending enrollment can be discarded")
+
+    sub = db.query(GymPaymentSubmission).filter(GymPaymentSubmission.enrollment_id == e.id).first()
+    if sub:
+        raise HTTPException(status_code=400, detail="Payment was already submitted for this enrollment; cancel it instead")
+
+    db.delete(e)
+    db.commit()
+    return {"deleted": True}
 
 
 
