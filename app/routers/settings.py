@@ -140,6 +140,7 @@ def get_settings(organization_id: uuid.UUID, payload: dict = Depends(require_rol
         "require_signature_first_guest": s.require_signature_first_guest,
         "sms_gateway_service": s.sms_gateway_service,
         "auto_sms_reminder_days": s.auto_sms_reminder_days,
+        "membership_expiry_email_days": s.membership_expiry_email_days,
         "annual_discount_percentage": float(s.annual_discount_percentage) if s.annual_discount_percentage is not None else DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE,
     }
 

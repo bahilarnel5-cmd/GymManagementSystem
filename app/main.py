@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -44,6 +46,7 @@ def ensure_schema():
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS months_selected INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'full_payment'",
         "ALTER TABLE gym_renewal_requests ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending'",
+        "ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS membership_expiry_email_days INTEGER NOT NULL DEFAULT 3",
     ]
     conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
     try:
@@ -88,6 +91,24 @@ app.add_middleware(
 
 for router in all_routers:
     app.include_router(router)
+
+
+def _start_expiry_email_scheduler():
+    """Daily membership-expiry email job. No-op until SMTP is configured."""
+    from app.emailer import check_and_email_expiry_notices
+
+    def run():
+        while True:
+            try:
+                check_and_email_expiry_notices()
+            except Exception:
+                pass
+            time.sleep(86400)
+
+    threading.Thread(target=run, name="expiry-email-scheduler", daemon=True).start()
+
+
+_start_expiry_email_scheduler()
 
 
 @app.get("/")

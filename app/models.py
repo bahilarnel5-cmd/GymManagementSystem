@@ -164,6 +164,7 @@ class GymSettings(Base):
     require_signature_first_guest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sms_gateway_service: Mapped[str | None] = mapped_column(String(50), nullable=True)
     auto_sms_reminder_days: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    membership_expiry_email_days: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     annual_discount_percentage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=15)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
@@ -375,3 +376,20 @@ class GymMemberChangeRequest(Base):
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class GymEmailNotification(Base):
+    """Dedup ledger for system-sent emails (e.g. membership-expiry notices) so
+    the daily reminder job never emails the same membership twice."""
+    __tablename__ = "gym_email_notifications"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "membership_id", "kind", name="uq_gym_email_notify_org_membership_kind"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    membership_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_memberships.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gym_members.id"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False, default="expiry")
+    sent_to: Mapped[str] = mapped_column(String(150), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

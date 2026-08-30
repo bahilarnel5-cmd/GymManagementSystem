@@ -280,6 +280,7 @@ class SettingsCreate(BaseModel):
     require_signature_first_guest: bool = True
     sms_gateway_service: Optional[str] = None
     auto_sms_reminder_days: int = 3
+    membership_expiry_email_days: int = 3
 
 
 class SettingsUpdate(BaseModel):
@@ -292,6 +293,7 @@ class SettingsUpdate(BaseModel):
     require_signature_first_guest: Optional[bool] = None
     sms_gateway_service: Optional[str] = None
     auto_sms_reminder_days: Optional[int] = None
+    membership_expiry_email_days: Optional[int] = None
 
 
 class AnnualDiscountUpdate(BaseModel):
@@ -320,6 +322,7 @@ class SettingsResponse(BaseModel):
     require_signature_first_guest: bool
     sms_gateway_service: Optional[str]
     auto_sms_reminder_days: int
+    membership_expiry_email_days: int
 
 
 # ---- Renewal Requests ----
