@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import GcashPaymentForm from '../components/GcashPaymentForm'
@@ -269,29 +269,66 @@ export default function MemberCoaches() {
         <EnrollModal
           selected={selected}
           setSelected={setSelected}
-          onClose={() => setSelected(null)}
         />
       )}
     </div>
   )
 }
 
-function EnrollModal({ selected, setSelected, onClose }) {
+function EnrollModal({ selected, setSelected }) {
   const queryClient = useQueryClient()
+  const closedRef = useRef(false)
+  const canceledRef = useRef(false)
 
   const availableDays = DAYS.filter((d) => (selected.coach.weekly_schedule || {})[d])
+
+  const cancelEnrollment = useMutation({
+    mutationFn: (id) => api.patch(`/gym_coach_enrollments/${id}/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-coach-enrollments'] })
+    },
+  })
+
+  const cancelPending = (id) => {
+    if (canceledRef.current) return
+    canceledRef.current = true
+    cancelEnrollment.mutate(id)
+  }
+
+  // Full close = cancel and reset the enrollment attempt. No partial state remains.
+  const closeFlow = () => {
+    closedRef.current = true
+    if (selected.step === 'gcash' && selected.enrollment) {
+      cancelPending(selected.enrollment.id)
+    }
+    setSelected(null)
+  }
 
   const { mutate: createEnrollment, isPending: creating, isError, error } = useMutation({
     mutationFn: (body) => api.post('/gym_coach_enrollments/', body).then((r) => r.data),
     onSuccess: (enrollment) => {
+      queryClient.invalidateQueries({ queryKey: ['member-coaches'] })
+      queryClient.invalidateQueries({ queryKey: ['my-coach-enrollments'] })
+      // Modal was closed while the request was in flight: don't resume the flow.
+      if (closedRef.current) {
+        if (enrollment.payment_method !== 'cash') cancelPending(enrollment.id)
+        return
+      }
       if (enrollment.payment_method === 'cash') {
         setSelected({ ...selected, step: 'success', enrollment })
       } else {
         setSelected({ ...selected, step: 'gcash', enrollment, method: enrollment.payment_method })
       }
-      queryClient.invalidateQueries({ queryKey: ['member-coaches'] })
     },
   })
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeFlow()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected])
 
   const totalPerDay = selected.coach.hourly_rate
   let total = 0
@@ -312,7 +349,7 @@ function EnrollModal({ selected, setSelected, onClose }) {
   const errMsg = (err) => err?.response?.data?.detail || 'Something went wrong'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeFlow}>
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -328,7 +365,7 @@ function EnrollModal({ selected, setSelected, onClose }) {
               <p className="text-xs text-gray-500">{selected.coach.specialization}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><i className="bi bi-x-lg" /></button>
+          <button onClick={closeFlow} className="text-gray-400 hover:text-gray-600"><i className="bi bi-x-lg" /></button>
         </div>
 
         <div className="p-6">
@@ -349,7 +386,7 @@ function EnrollModal({ selected, setSelected, onClose }) {
                 <div className="flex justify-between"><span className="text-gray-500">Payment method</span><span className="font-medium text-gray-800 capitalize">{String(selected.enrollment?.payment_method || '').replace('_', ' ')}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-semibold text-gym-600">₱{parseFloat(selected.enrollment?.total_amount || 0).toLocaleString()}</span></div>
               </div>
-              <button onClick={onClose} className="mt-6 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700">Done</button>
+              <button onClick={closeFlow} className="mt-6 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700">Done</button>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -27,8 +27,25 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
   const [amount, setAmount] = useState('')
   const [refLast4, setRefLast4] = useState('')
   const [file, setFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
   const fileRef = useRef(null)
   const a = accents[accent] || accents.emerald
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  const clearFile = () => {
+    setFile(null)
+    setPreviewUrl(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
   const submitMutation = useMutation({
     mutationFn: (fd) => api.post('/gym_payments/submit', fd).then((r) => r.data),
@@ -103,6 +120,24 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
             className={`w-full text-sm text-gray-600 file:mr-3 file:px-4 file:py-2 file:rounded-xl file:border-0 ${a.file} file:text-sm file:font-medium`}
             required
           />
+          {file && (
+            <div className="mt-2.5 flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-2.5">
+              {previewUrl && (
+                <img src={previewUrl} alt="Payment proof preview" className="w-14 h-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+                <p className="text-[11px] text-gray-400">{(file.size / 1024).toFixed(0)} KB</p>
+              </div>
+              <button
+                type="button"
+                onClick={clearFile}
+                className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-100 transition-colors"
+              >
+                <i className="bi bi-x-lg" /> Remove
+              </button>
+            </div>
+          )}
         </div>
         {submitMutation.isError && (
           <p className="text-sm text-red-500">{submitMutation.error?.response?.data?.detail || 'Failed to submit payment'}</p>
