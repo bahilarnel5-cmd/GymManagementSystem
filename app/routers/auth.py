@@ -12,6 +12,25 @@ from app.schemas import RegisterRequest, LoginRequest, TokenResponse, UserAccoun
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@router.get("/users")
+def list_users(
+    payload: dict = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    org_id = payload.get("organization_id")
+    users = db.query(GymUser).filter(GymUser.organization_id == org_id).all()
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "role": u.role,
+            "member_id": str(u.member_id) if u.member_id else None,
+            "coach_id": str(u.coach_id) if u.coach_id else None,
+        }
+        for u in users
+    ]
+
+
 @router.patch("/users/{user_id}")
 def update_user_account(
     user_id: uuid.UUID,
