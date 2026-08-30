@@ -3,6 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
 
+const coachColors = [
+  { bg: 'bg-violet-500', ring: 'ring-violet-200' },
+  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
+  { bg: 'bg-emerald-500', ring: 'ring-emerald-200' },
+  { bg: 'bg-amber-500', ring: 'ring-amber-200' },
+  { bg: 'bg-rose-500', ring: 'ring-rose-200' },
+]
+
 export default function Settings() {
   const queryClient = useQueryClient()
   const orgId = useAuthStore((s) => s.orgId) || '11111111-1111-1111-1111-111111111111'
@@ -185,6 +193,7 @@ function formatMobilePhone(input) {
 function CoachesManager({ orgId, queryClient }) {
   const [editing, setEditing] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [expandedId, setExpandedId] = useState(null)
 
   const { data: coachesData, isLoading } = useQuery({
     queryKey: ['coaches'],
@@ -197,6 +206,7 @@ function CoachesManager({ orgId, queryClient }) {
   })
 
   const coaches = coachesData?.items || []
+  const getInitials = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <div className="space-y-6">
@@ -230,49 +240,99 @@ function CoachesManager({ orgId, queryClient }) {
           <p className="text-gray-400">No coaches yet</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {coaches.map((c) => (
-            <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-all">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 font-bold text-sm">
-                    {c.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {coaches.map((c, idx) => {
+            const color = coachColors[idx % coachColors.length]
+            const expanded = expandedId === c.id
+            return (
+              <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group h-fit">
+                <button
+                  onClick={() => setExpandedId(expanded ? null : c.id)}
+                  className="w-full text-left cursor-pointer"
+                  aria-expanded={expanded}
+                >
+                  <div className={`${color.bg} p-5 pb-8 relative transition-colors ${expanded ? '' : 'group-hover:brightness-95'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
+                        {getInitials(c.full_name)}
+                      </div>
+                      <div className="text-white flex-1 min-w-0">
+                        <h3 className="font-bold text-sm">{c.full_name}</h3>
+                        <p className="text-white/70 text-xs">{c.specialization}</p>
+                      </div>
+                      <i className={`bi bi-chevron-down text-white/80 text-lg transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm text-gray-800">{c.full_name}</p>
-                    <p className="text-xs text-gray-400">{c.specialization}</p>
+
+                  <div className="relative px-5 pb-5 -mt-3">
+                    <div className="bg-white rounded-xl border border-gray-100 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                            <i className="bi bi-cash-stack text-violet-600 text-xs" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
+                            <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/hr</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <i className={`bi bi-chevron-down text-[10px] transition-transform duration-200 inline-block ${expanded ? 'rotate-180' : ''}`} />
+                          {expanded ? 'Hide details' : 'View details'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="space-y-1.5 mb-4">
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <i className="bi bi-cash-stack text-violet-500" /> ₱{c.hourly_rate.toLocaleString()}/hr
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <i className="bi bi-telephone text-violet-500" /> {c.mobile_contact}
-                </div>
-                {c.shift_schedule && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <i className="bi bi-clock text-violet-500" /> {c.shift_schedule}
+                </button>
+
+                {expanded && (
+                  <div className="px-5 pb-5 -mt-1">
+                    <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <i className="bi bi-telephone text-blue-600 text-xs" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Phone</p>
+                            <p className="text-sm font-medium text-gray-700 break-words">{c.mobile_contact}</p>
+                          </div>
+                        </div>
+                        {c.shift_schedule && (
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                              <i className="bi bi-clock text-amber-600 text-xs" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Shift Schedule</p>
+                              <p className="text-sm font-medium text-gray-700 break-words">{c.shift_schedule}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-4">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            onClick={() => { setEditing(c); setShowAdd(false) }}
+                            className="flex-1 py-2.5 rounded-xl text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors flex items-center justify-center gap-1"
+                          >
+                            <i className="bi bi-pencil" /> Edit
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete ${c.full_name}?`)) deleteMutation.mutate(c.id) }}
+                            className="flex-1 py-2.5 rounded-xl text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
+                          >
+                            <i className="bi bi-trash" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setEditing(c); setShowAdd(false) }}
-                  className="flex-1 py-2 rounded-xl text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors flex items-center justify-center gap-1"
-                >
-                  <i className="bi bi-pencil" /> Edit
-                </button>
-                <button
-                  onClick={() => { if (confirm(`Delete ${c.full_name}?`)) deleteMutation.mutate(c.id) }}
-                  className="flex-1 py-2 rounded-xl text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
-                >
-                  <i className="bi bi-trash" /> Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -558,7 +618,7 @@ function PlanForm({ orgId, queryClient, editData, onDone }) {
 }
 
 function RolesManager({ orgId, queryClient }) {
-  const [expandedRole, setExpandedRole] = useState('admin')
+  const [selectedRole, setSelectedRole] = useState('admin')
   const { data, isLoading } = useQuery({
     queryKey: ['role-menus'],
     queryFn: () => api.get('/gym_menus/roles').then((r) => r.data),
@@ -573,9 +633,28 @@ function RolesManager({ orgId, queryClient }) {
     },
   })
 
-  const toggleItem = (role, items, menuId) => {
-    const next = items.map((it) => it.menu_id === menuId ? { ...it, enabled: !it.enabled } : it)
-    saveMutation.mutate({ role, items: next })
+  const currentRole = roles.find((r) => r.role === selectedRole)
+  const currentItems = currentRole?.items || []
+
+  // Single unified set of every sidebar section across all roles,
+  // shown once each (deduplicated by menu_id).
+  const unifiedTiles = []
+  const seen = new Set()
+  for (const role of roles) {
+    for (const item of role.items) {
+      if (!seen.has(item.menu_id)) {
+        seen.add(item.menu_id)
+        unifiedTiles.push(item)
+      }
+    }
+  }
+
+  const enabledCount = currentItems.filter((i) => i.enabled).length
+  const applicableCount = unifiedTiles.filter((t) => currentItems.some((i) => i.menu_id === t.menu_id)).length
+
+  const toggleItem = (menuId) => {
+    const next = currentItems.map((it) => it.menu_id === menuId ? { ...it, enabled: !it.enabled } : it)
+    saveMutation.mutate({ role: selectedRole, items: next })
   }
 
   return (
@@ -587,50 +666,74 @@ function RolesManager({ orgId, queryClient }) {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-white">Role-Based Sidebar</h2>
-            <p className="text-indigo-100 text-xs">Choose which menu items each role can see</p>
+            <p className="text-indigo-100 text-xs">Select which sections each role can see from one grid</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {roles.map((role) => (
-              <div key={role.role}>
-                <button
-                  onClick={() => setExpandedRole(expandedRole === role.role ? null : role.role)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-                >
-                  <span className="font-semibold text-gray-800 capitalize">{role.role}</span>
-                  <span className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">{role.items.filter(i => i.enabled).length} items</span>
-                    <i className={`bi ${expandedRole === role.role ? 'bi-chevron-up' : 'bi-chevron-down'} text-gray-400`} />
-                  </span>
-                </button>
-                {expandedRole === role.role && (
-                  <div className="px-5 pb-5 space-y-2">
-                    {role.items.map((item) => (
-                      <div key={item.menu_id} className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-gray-50">
-                        <div className="flex items-center gap-2.5">
-                          <i className={`bi ${item.icon} text-indigo-500 text-sm`} />
-                          <span className="text-sm text-gray-700">{item.label}</span>
-                          <span className="text-[10px] text-gray-400 font-mono">{item.path}</span>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.enabled}
-                            onChange={() => toggleItem(role.role, role.items, item.menu_id)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:bg-indigo-600 transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <div className="p-6">
+            <div className="flex justify-center mb-6">
+              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+                {roles.map((role) => {
+                  const count = role.items.filter((i) => i.enabled).length
+                  return (
+                    <button
+                      key={role.role}
+                      onClick={() => setSelectedRole(role.role)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        selectedRole === role.role ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <span className="capitalize">{role.role}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${selectedRole === role.role ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
+                    </button>
+                  )
+                })}
               </div>
-            ))}
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3">
+              {unifiedTiles.map((tile) => {
+                const item = currentItems.find((it) => it.menu_id === tile.menu_id)
+                const available = !!item
+                const enabled = available && item.enabled
+                return (
+                  <button
+                    key={tile.menu_id}
+                    onClick={() => available && toggleItem(tile.menu_id)}
+                    title={available ? `Toggle ${tile.label}` : 'Not available for this role'}
+                    disabled={!available}
+                    className={`w-28 rounded-2xl border-2 p-4 flex flex-col items-center gap-2 text-center transition-all duration-200 ${
+                      !available
+                        ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
+                        : enabled
+                          ? 'border-indigo-600 bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md'
+                          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                      !available
+                        ? 'bg-gray-200 text-gray-400'
+                        : enabled
+                          ? 'bg-white/20 text-white'
+                          : 'bg-indigo-50 text-indigo-600'
+                    }`}>
+                      <i className={`bi ${tile.icon} text-lg`} />
+                    </div>
+                    <span className={`text-xs font-medium leading-tight ${enabled ? 'text-white' : 'text-gray-700'}`}>
+                      {tile.label}
+                    </span>
+                    <i className={`bi text-[10px] ${enabled ? 'bi-check-circle-fill text-white/80' : available ? 'bi-circle text-gray-300' : 'bi-slash-circle text-gray-300'}`} />
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className="text-xs text-gray-400 text-center mt-6">
+              <span className="capitalize">{selectedRole}</span> sees {enabledCount} of {applicableCount} sections — tap a tile to toggle it for this role.
+            </p>
           </div>
         )}
       </div>

@@ -10,6 +10,21 @@ const actionStyles = {
   void: 'bg-red-100 text-red-700',
 }
 
+// Backend stores timestamps in UTC (naive, no timezone suffix) — display in
+// Philippine time (Asia/Manila).
+const formatLogTime = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`)
+  return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export default function ActivityLogs() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -68,7 +83,7 @@ export default function ActivityLogs() {
                 <tr><td colSpan={5} className="text-center py-8 text-gray-400">No activity logged yet.</td></tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatLogTime(r.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-800">{r.actor_name}</span>

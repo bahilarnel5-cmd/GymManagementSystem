@@ -13,7 +13,6 @@ MENUS = [
     {"menu_id": "dashboard", "role": "admin", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/dashboard", "sort_order": 0},
     {"menu_id": "members", "role": "admin", "label": "Members", "icon": "bi-people", "path": "/members", "sort_order": 1},
     {"menu_id": "coaches", "role": "admin", "label": "Coaches", "icon": "bi-person-badge", "path": "/coaches", "sort_order": 2},
-    {"menu_id": "coach_students", "role": "admin", "label": "Coach & Students", "icon": "bi-diagram-3", "path": "/coach-students", "sort_order": 3},
     {"menu_id": "plans", "role": "admin", "label": "Membership Plans", "icon": "bi-card-list", "path": "/plans", "sort_order": 4},
     {"menu_id": "memberships", "role": "admin", "label": "Memberships", "icon": "bi-credit-card", "path": "/memberships", "sort_order": 5},
     {"menu_id": "payments", "role": "admin", "label": "Payments", "icon": "bi-cash-coin", "path": "/payments", "sort_order": 6},
@@ -47,9 +46,18 @@ def seed_role_menus(db, organization_id):
         GymRoleMenu.organization_id == organization_id
     ).all()
     existing_keys = {(r.role, r.menu_id) for r in existing}
+    catalog_keys = {(m["role"], m["menu_id"]) for m in MENUS}
 
     now = datetime.now(timezone.utc)
-    added = False
+    changed = False
+
+    # Drop rows for menu items that no longer exist in the catalog,
+    # so removed sections disappear from every role's sidebar.
+    for row in existing:
+        if (row.role, row.menu_id) not in catalog_keys:
+            db.delete(row)
+            changed = True
+
     for m in MENUS:
         if (m["role"], m["menu_id"]) in existing_keys:
             continue
@@ -67,6 +75,6 @@ def seed_role_menus(db, organization_id):
             updated_at=now,
         )
         db.add(row)
-        added = True
-    if added:
+        changed = True
+    if changed:
         db.commit()

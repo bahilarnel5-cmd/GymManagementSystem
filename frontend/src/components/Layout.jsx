@@ -9,7 +9,6 @@ const iconColors = {
   '/dashboard': 'from-blue-400 to-blue-600',
   '/members': 'from-emerald-400 to-emerald-600',
   '/coaches': 'from-violet-400 to-violet-600',
-  '/coach-students': 'from-teal-400 to-teal-600',
   '/plans': 'from-amber-400 to-amber-600',
   '/memberships': 'from-pink-400 to-pink-600',
   '/payments': 'from-cyan-400 to-cyan-600',
