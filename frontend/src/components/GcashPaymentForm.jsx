@@ -3,10 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
 
-// GCash details shown to members. Replace the QR image / account with your gym's
-// real GCash details. (You can point QR_SRC at a public URL or a local asset.)
-export const GCASH_ACCOUNT_NAME = 'GymManager Suporta'
-export const GCASH_ACCOUNT_NUMBER = '0917 123 4567'
+// GCash receiving details shown to members. A GET /gym_payments/gcash-info
+// returns the serving account at runtime (same values in normal mode; bank
+// account is untouched by demo mode) — these exports are the offline fallback.
+export const GCASH_ACCOUNT_NAME = 'Arnel Bahil'
+export const GCASH_ACCOUNT_NUMBER = '09690226049'
 
 const accents = {
   emerald: {
@@ -28,8 +29,16 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
   const [refLast4, setRefLast4] = useState('')
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
+  const [gcashInfo, setGcashInfo] = useState(null)
   const fileRef = useRef(null)
   const a = accents[accent] || accents.emerald
+
+  useEffect(() => {
+    api.get('/gym_payments/gcash-info').then((r) => setGcashInfo(r.data)).catch(() => {})
+  }, [])
+
+  const receivingName = gcashInfo?.receiving_name || GCASH_ACCOUNT_NAME
+  const receivingNumber = gcashInfo?.receiving_number || GCASH_ACCOUNT_NUMBER
 
   useEffect(() => {
     if (!file) {
@@ -105,8 +114,8 @@ export default function GcashPaymentForm({ accent = 'emerald', amountPlaceholder
           <i className="bi bi-qr-code text-6xl text-blue-300" />
         </div>
         <div className="bg-white rounded-lg px-3 py-2 text-center shadow-sm">
-          <p className="text-sm font-semibold text-gray-800">{GCASH_ACCOUNT_NAME}</p>
-          <p className="text-xs text-gray-500">{GCASH_ACCOUNT_NUMBER}</p>
+          <p className="text-sm font-semibold text-gray-800">{receivingName}</p>
+          <p className="text-xs text-gray-500">{receivingNumber}</p>
         </div>
         <button
           type="button"

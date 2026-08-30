@@ -10,11 +10,19 @@ from app.models import (
     GymPaymentSubmission, GymUser,
 )
 from app.auth import require_role
+from app.demo import demo_payment_info
 from app.schemas import PaymentCreate, PaymentSubmissionReview
 from app.activity import log_action
 from app import storage
 
 router = APIRouter(prefix="/gym_payments", tags=["payments"])
+
+
+@router.get("/gcash-info")
+def gcash_info(payload: dict = Depends(require_role("member", "admin"))):
+    """GCash receiving details for the checkout/scan-to-pay screen, plus the
+    demo-mode flag and the override amount due when DEMO_MODE is on."""
+    return demo_payment_info()
 
 
 def _get_submission(db, submission_id: uuid.UUID, org_id):
@@ -284,7 +292,6 @@ async def submit_payment(
     if renewal:
         linked_membership = db.query(GymMembership).filter(GymMembership.id == renewal.membership_id).first()
     elif membership_id:
-        from app.models import GymMembership
         try:
             lid = uuid.UUID(membership_id)
         except Exception:
@@ -320,6 +327,33 @@ async def submit_payment(
                     status_code=422,
                     detail=f"Full payment requires exactly the final amount (₱{total:,.2f})",
                 )
+
+    # Reject reference-number reuse: the same last-4 can't pay the same target
+    # twice, and can't be passed off as another member's payment either.
+    if enrollment or renewal or linked_membership:
+        dup_scope = db.query(GymPaymentSubmission).filter(
+            GymPaymentSubmission.ref_last4 == clean_ref,
+        )
+        if enrollment:
+            dup_scope = dup_scope.filter(GymPaymentSubmission.enrollment_id == enrollment.id)
+        elif renewal:
+            dup_scope = dup_scope.filter(GymPaymentSubmission.renewal_id == renewal.id)
+        elif linked_membership:
+            dup_scope = dup_scope.filter(GymPaymentSubmission.membership_id == linked_membership.id)
+        if dup_scope.first() is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="This reference number was already used for this payment",
+            )
+    dup_other = db.query(GymPaymentSubmission).filter(
+        GymPaymentSubmission.ref_last4 == clean_ref,
+        GymPaymentSubmission.member_id != mid,
+    ).first()
+    if dup_other is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="This reference number was already used by another member's payment",
+        )
 
     file_bytes = await file.read()
     if not file_bytes:

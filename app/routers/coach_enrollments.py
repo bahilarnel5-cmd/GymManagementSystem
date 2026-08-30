@@ -10,6 +10,7 @@ from app.models import (
     GymCoach, GymMember, GymCoachEnrollment, CoachSchedule, GymPaymentSubmission,
 )
 from app.auth import require_role
+from app.demo import demo_amount
 from app.schemas import CoachEnrollmentCreate
 from app.activity import log_action
 
@@ -99,7 +100,7 @@ def create_enrollment(
             detail="You already have an active or pending enrollment. End it before enrolling again.",
         )
 
-    total_amount = float(coach.hourly_rate) * len(days)
+    total_amount = demo_amount(float(coach.hourly_rate) * len(days))
 
     if body.payment_method == "cash":
         payment_status = "cash_pending"

@@ -9,6 +9,7 @@ to two decimals (PHP).
 """
 from sqlalchemy.orm import Session
 
+from app.demo import demo_amount
 from app.models import GymSettings, GymDurationDiscount
 
 DEFAULT_ANNUAL_DISCOUNT_PERCENTAGE = 15.0
@@ -113,7 +114,7 @@ def compute_billing(monthly_price, billing_cycle: str | None, discount_pct=None)
         original_total = round(monthly, 2)
         discount_applied = 0.0
 
-    final_amount = round(original_total - discount_applied, 2)
+    final_amount = demo_amount(round(original_total - discount_applied, 2))
 
     return {
         "billing_cycle": cycle,
@@ -138,7 +139,7 @@ def compute_duration_pricing(monthly_price, months: int | None, discount_pct=Non
 
     original_total = round(monthly * months, 2)
     discount_applied = round(original_total * discount_pct / 100.0, 2)
-    final_amount = round(original_total - discount_applied, 2)
+    final_amount = demo_amount(round(original_total - discount_applied, 2))
 
     return {
         "months": months,
