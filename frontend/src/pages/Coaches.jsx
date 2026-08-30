@@ -3,14 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 
-const coachColors = [
-  { bg: 'bg-violet-500', ring: 'ring-violet-200' },
-  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
-  { bg: 'bg-emerald-500', ring: 'ring-emerald-200' },
-  { bg: 'bg-amber-500', ring: 'ring-amber-200' },
-  { bg: 'bg-rose-500', ring: 'ring-rose-200' },
-]
-
 const tabs = [
   { id: 'coaches', label: 'Coaches', icon: 'bi-person-badge' },
   { id: 'enrollments', label: 'Enrollments', icon: 'bi-people' },
@@ -83,55 +75,42 @@ function CoachesGrid() {
           <p className="text-gray-400">No coaches found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {data?.items?.map((c, idx) => {
-            const color = coachColors[idx % coachColors.length]
-            const expanded = expandedId === c.id
-            return (
-              <div key={c.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group h-fit">
-                <button
-                  onClick={() => setExpandedId(expanded ? null : c.id)}
-                  className="w-full text-left cursor-pointer"
-                  aria-expanded={expanded}
-                >
-                  <div className={`${color.bg} p-5 pb-8 relative transition-colors ${expanded ? '' : 'group-hover:brightness-95'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg ring-2 ${color.ring}`}>
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="hidden md:flex items-center gap-4 px-5 py-2.5 bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            <div className="flex-1">Coach</div>
+            <div className="w-1/3">Specialization</div>
+            <div className="w-6" />
+          </div>
+          <div className="divide-y divide-gray-100">
+            {data?.items?.map((c) => {
+              const expanded = expandedId === c.id
+              return (
+                <div key={c.id}>
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : c.id)}
+                    className="w-full text-left cursor-pointer group flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                    aria-expanded={expanded}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center font-bold text-sm shrink-0">
                         {getInitials(c.full_name)}
                       </div>
-                      <div className="text-white flex-1 min-w-0">
-                        <h3 className="font-bold text-sm">{c.full_name}</h3>
-                        <p className="text-white/70 text-xs">{c.specialization}</p>
-                      </div>
-                      <i className={`bi bi-chevron-down text-white/80 text-lg transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-                    </div>
-                  </div>
-
-                  <div className="relative px-5 pb-5 -mt-3">
-                    <div className="bg-white rounded-xl border border-gray-100 p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-gym-50 flex items-center justify-center">
-                            <i className="bi bi-cash-stack text-gym-600 text-xs" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</p>
-                            <p className="text-sm font-bold text-gray-800">₱{c.hourly_rate.toLocaleString()}/day</p>
-                          </div>
-                        </div>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <i className={`bi bi-chevron-down text-[10px] transition-transform duration-200 inline-block ${expanded ? 'rotate-180' : ''}`} />
-                          {expanded ? 'Hide details' : 'View details'}
-                        </span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-gray-800 truncate">{c.full_name}</p>
+                        <p className="text-xs text-gray-400 md:hidden">{c.specialization}</p>
                       </div>
                     </div>
-                  </div>
-                </button>
+                    <div className="hidden md:block w-1/3 text-sm text-gray-500 truncate">{c.specialization}</div>
+                    <div className="w-6 flex justify-end">
+                      <i className={`bi bi-chevron-down text-gray-400 text-sm transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
 
-                {expanded && <CoachDetails coachId={c.id} color={color} />}
-              </div>
-            )
-          })}
+                  {expanded && <CoachDetails coachId={c.id} />}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -148,7 +127,7 @@ function CoachesGrid() {
   )
 }
 
-function CoachDetails({ coachId, color }) {
+function CoachDetails({ coachId }) {
   const { data, isLoading } = useQuery({
     queryKey: ['coach-details', coachId],
     queryFn: () => api.get(`/gym_coaches/${coachId}`).then((r) => r.data),
@@ -158,7 +137,7 @@ function CoachDetails({ coachId, color }) {
   if (isLoading) {
     return (
       <div className="px-5 pb-4">
-        <div className="flex items-center justify-center py-6 bg-gray-50 rounded-xl border border-gray-100">
+        <div className="flex items-center justify-center py-6 bg-gray-50 rounded-lg border border-gray-100">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gym-600" />
         </div>
       </div>
@@ -189,8 +168,8 @@ function CoachDetails({ coachId, color }) {
   }
 
   return (
-    <div className="px-5 pb-5 -mt-1">
-      <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+    <div className="px-5 pb-5">
+      <div className="bg-gray-50 rounded-lg border border-gray-100 p-4 space-y-4">
         <div className="space-y-3">
           {infoRow({ icon: 'bi-cash-stack', iconBg: 'bg-gym-50', iconColor: 'text-gym-600', label: 'Rate', value: `₱${(data.hourly_rate ?? 0).toLocaleString()}/day` })}
           {infoRow({ icon: 'bi-telephone', iconBg: 'bg-blue-50', iconColor: 'text-blue-600', label: 'Phone', value: data.mobile_contact })}

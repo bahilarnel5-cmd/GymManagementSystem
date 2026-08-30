@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './lib/store'
 import Layout from './components/Layout'
 import MemberLayout from './components/MemberLayout'
-import CoachLayout from './components/CoachLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -18,10 +17,6 @@ import MemberDashboard from './pages/MemberDashboard'
 import MemberCoaches from './pages/MemberCoaches'
 import MemberRenewals from './pages/MemberRenewals'
 import MemberProfile from './pages/MemberProfile'
-import CoachDashboard from './pages/CoachDashboard'
-import CoachStudents from './pages/CoachStudents'
-import CoachBookings from './pages/CoachBookings'
-import CoachSchedule from './pages/CoachSchedules'
 
 function ProtectedRoute({ children }) {
   const token = useAuthStore((s) => s.token)
@@ -32,7 +27,7 @@ function PublicOnlyRoute({ children }) {
   const token = useAuthStore((s) => s.token)
   const role = useAuthStore((s) => s.role)
   if (token) {
-    const home = role === 'admin' ? '/dashboard' : role === 'coach' ? '/coach/dashboard' : '/member/dashboard'
+    const home = role === 'member' ? '/member/dashboard' : '/dashboard'
     return <Navigate to={home} />
   }
   return children
@@ -71,24 +66,12 @@ function MemberRoutes() {
   )
 }
 
-function CoachRoutes() {
-  return (
-    <CoachLayout>
-      <Routes>
-        <Route path="/coach/dashboard" element={<CoachDashboard />} />
-        <Route path="/coach/students" element={<CoachStudents />} />
-        <Route path="/coach/bookings" element={<CoachBookings />} />
-        <Route path="/coach/schedules" element={<CoachSchedule />} />
-        <Route path="*" element={<Navigate to="/coach/dashboard" />} />
-      </Routes>
-    </CoachLayout>
-  )
-}
-
 export default function App() {
   const role = useAuthStore((s) => s.role)
 
-  const HomeRoutes = role === 'admin' ? <AdminRoutes /> : role === 'coach' ? <CoachRoutes /> : <MemberRoutes />
+  // Member logins get the member portal; any staff role (admin or a custom
+  // role like "cashier") gets the admin portal with its assigned sidebar.
+  const HomeRoutes = role === 'member' ? <MemberRoutes /> : <AdminRoutes />
 
   return (
     <Routes>

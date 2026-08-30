@@ -24,14 +24,61 @@ MENUS = [
     {"menu_id": "coaches", "role": "member", "label": "Coaches", "icon": "bi-person-badge", "path": "/member/coaches", "sort_order": 1},
     {"menu_id": "renewals", "role": "member", "label": "Renewals", "icon": "bi-arrow-repeat", "path": "/member/renewals", "sort_order": 2},
     {"menu_id": "profile", "role": "member", "label": "My Profile", "icon": "bi-person-circle", "path": "/member/profile", "sort_order": 3},
-    # Coach
-    {"menu_id": "dashboard", "role": "coach", "label": "Dashboard", "icon": "bi-speedometer2", "path": "/coach/dashboard", "sort_order": 0},
-    {"menu_id": "students", "role": "coach", "label": "My Students", "icon": "bi-people", "path": "/coach/students", "sort_order": 1},
-    {"menu_id": "bookings", "role": "coach", "label": "My Sessions", "icon": "bi-calendar-check", "path": "/coach/bookings", "sort_order": 2},
-    {"menu_id": "schedules", "role": "coach", "label": "My Schedule", "icon": "bi-calendar3", "path": "/coach/schedules", "sort_order": 3},
 ]
 
-ROLES = ["admin", "member", "coach"]
+# Built-in roles. Staff accounts may use any extra role name; their permission
+# set is stored in gym_role_menus and defaults to the admin portal sections.
+ROLES = ["admin", "member"]
+
+
+def _portal_for(role):
+    """Member logins keep the member portal; every other role is a staff role
+    that uses the admin portal."""
+
+    return "member" if role == "member" else "admin"
+
+
+def _section_for(role, menu_id):
+    """Best catalog entry for a section in a given role's portal.
+
+    Prefers the entry native to the role's portal (member role -> member
+    portal, everything else -> admin portal), then falls back to the other
+    portal's entry so admin can freely mix member-portal sections (and vice
+    versa) into any role.
+    """
+
+    prefer = _portal_for(role)
+    for m in MENUS:
+        if m["role"] == prefer and m["menu_id"] == menu_id:
+            return m
+    for m in MENUS:
+        if m["menu_id"] == menu_id:
+            return m
+    return None
+
+
+def _native_session(role, menu_id):
+    """True when a section is native to the role's portal (enabled by default)."""
+
+    return any(m["role"] == _portal_for(role) and m["menu_id"] == menu_id for m in MENUS)
+
+
+def all_sections():
+    """Deduplicated union of every section across all portals, for the Settings
+    'Sidebar & Roles' permission grid.
+
+    Admin-portal entries come first in the catalog, so they win the label/icon
+    for sections that exist in both portals (Dashboard, Coaches).
+    """
+
+    sections = []
+    seen = set()
+    for m in MENUS:
+        if m["menu_id"] in seen:
+            continue
+        seen.add(m["menu_id"])
+        sections.append(m)
+    return sections
 
 
 def seed_role_menus(db, organization_id):

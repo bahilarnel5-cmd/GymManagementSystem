@@ -145,7 +145,7 @@ export default function Layout({ children }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-slate-200 truncate capitalize">{role}</p>
-              <p className="text-[10px] text-slate-500">Gym Administrator</p>
+              <p className="text-[10px] text-slate-500">Staff Account</p>
             </div>
           </div>
           <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200 transition-colors">

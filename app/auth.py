@@ -40,10 +40,16 @@ def decode_token(token: str = Depends(oauth2_scheme)) -> dict:
 
 def require_role(*allowed_roles: str):
     def checker(payload: dict = Depends(decode_token)):
-        if payload.get("role") not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized for this action",
-            )
-        return payload
+        role = payload.get("role")
+        if role in allowed_roles:
+            return payload
+        # Custom staff roles (anything that isn't a member/coach login) get the
+        # same API access as admin — their permission set is sidebar-only and
+        # defined per role in gym_role_menus.
+        if "admin" in allowed_roles and role not in ("member", "coach"):
+            return payload
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized for this action",
+        )
     return checker

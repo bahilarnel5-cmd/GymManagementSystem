@@ -2,18 +2,101 @@ import uuid
 import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GymCoach, GymMember, GymCoachEnrollment, CoachSchedule
+from app.models import GymCoach, GymMember, GymCoachEnrollment, CoachSchedule, GymMembership, GymMembershipPlan, GymPayment, GymPtSession
 from app.auth import require_role
 from app.schemas import CoachCreate, CoachUpdate
 from app.activity import log_action
-from .coach_portal import _student_paid_info
 
 router = APIRouter(prefix="/gym_coaches", tags=["coaches"])
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _student_paid_info(db, member, organization_id):
+    membership_row = (
+        db.query(GymMembership, GymMembershipPlan)
+        .join(GymMembershipPlan, GymMembership.plan_id == GymMembershipPlan.id)
+        .filter(
+            GymMembership.member_id == member.id,
+            GymMembership.organization_id == organization_id,
+        )
+        .order_by(GymMembership.end_date.desc())
+        .first()
+    )
+    membership_plan = None
+    membership_status = None
+    membership_ends = None
+    membership_paid = False
+    if membership_row:
+        gm, plan = membership_row
+        membership_plan = plan.name
+        membership_status = gm.status
+        membership_ends = gm.end_date.isoformat()
+
+        membership_paid_sum = (
+            db.query(func.coalesce(func.sum(GymPayment.amount), 0.0))
+            .filter(
+                GymPayment.membership_id == gm.id,
+                GymPayment.organization_id == organization_id,
+                GymPayment.status == "paid",
+            )
+            .scalar()
+        ) or 0.0
+        membership_paid = (
+            gm.status in ("active", "pending_payment")
+            and (
+                float(gm.amount_paid) >= float(gm.amount_due)
+                or float(membership_paid_sum) > 0
+            )
+        )
+
+    coach_total = (
+        db.query(func.coalesce(func.sum(GymPayment.amount), 0.0))
+        .filter(
+            GymPayment.member_id == member.id,
+            GymPayment.organization_id == organization_id,
+            GymPayment.status == "paid",
+            GymPayment.payment_category == "coach",
+        )
+        .scalar()
+    ) or 0.0
+
+    pt_paid = (
+        db.query(func.coalesce(func.sum(GymPtSession.amount_paid), 0.0))
+        .filter(
+            GymPtSession.member_id == member.id,
+            GymPtSession.organization_id == organization_id,
+            GymPtSession.amount_paid > 0,
+        )
+        .scalar()
+    ) or 0.0
+
+    last_paid = (
+        db.query(func.max(GymPayment.paid_at))
+        .filter(
+            GymPayment.member_id == member.id,
+            GymPayment.organization_id == organization_id,
+            GymPayment.status == "paid",
+        )
+        .scalar()
+    )
+
+    total_paid = round(float(coach_total) + float(pt_paid), 2)
+    is_paid = bool(membership_paid) or total_paid > 0
+    return {
+        "membership_plan": membership_plan,
+        "membership_status": membership_status,
+        "membership_ends": membership_ends,
+        "membership_paid": membership_paid,
+        "coach_total": round(float(coach_total), 2),
+        "total_paid": total_paid,
+        "paid": is_paid,
+        "last_paid_at": last_paid.isoformat() if last_paid else None,
+    }
 
 
 @router.get("/")

@@ -443,12 +443,12 @@ class CoachSlotResponse(BaseModel):
     booked_by_me: bool
 
 
-# ---- Coach Portal Accounts ----
+# ---- Staff Accounts ----
 
-class CoachAccountCreate(BaseModel):
-    coach_id: uuid.UUID
+class StaffAccountCreate(BaseModel):
     email: EmailStr
     password: str
+    role: str  # Sidebar permission set assigned to this account
 
 
 # ---- Role Menu Config ----

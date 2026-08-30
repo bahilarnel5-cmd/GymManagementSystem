@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useAuthStore } from '../lib/store'
@@ -25,34 +25,36 @@ export default function Settings() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage members, coaches, plans, and role-based sidebar</p>
-      </div>
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage members, coaches, plans, and role-based sidebar</p>
+        </div>
 
-      {/* Simple navbar-style tabs matching the settings UI */}
-      <div className="mb-6 inline-flex flex-wrap items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              activeTab === tab.id
-                ? 'bg-white text-gym-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <i className={`bi ${tab.icon} text-xs`} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {/* Simple navbar-style tabs matching the settings UI */}
+        <div className="mb-6 inline-flex flex-wrap items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'bg-white text-gym-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <i className={`bi ${tab.icon} text-xs`} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      <div className="max-w-4xl">
-        {activeTab === 'members' && <MembersForm orgId={orgId} queryClient={queryClient} />}
-        {activeTab === 'coaches' && <CoachesManager orgId={orgId} queryClient={queryClient} />}
-        {activeTab === 'plans' && <PlansManager orgId={orgId} queryClient={queryClient} />}
-        {activeTab === 'roles' && <RolesManager orgId={orgId} queryClient={queryClient} />}
+        <div>
+          {activeTab === 'members' && <MembersForm orgId={orgId} queryClient={queryClient} />}
+          {activeTab === 'coaches' && <CoachesManager orgId={orgId} queryClient={queryClient} />}
+          {activeTab === 'plans' && <PlansManager orgId={orgId} queryClient={queryClient} />}
+          {activeTab === 'roles' && <RolesManager queryClient={queryClient} />}
+        </div>
       </div>
     </div>
   )
@@ -617,7 +619,7 @@ function PlanForm({ orgId, queryClient, editData, onDone }) {
   )
 }
 
-function RolesManager({ orgId, queryClient }) {
+function RolesManager({ queryClient }) {
   const [selectedRole, setSelectedRole] = useState('admin')
   const { data, isLoading } = useQuery({
     queryKey: ['role-menus'],
@@ -636,8 +638,8 @@ function RolesManager({ orgId, queryClient }) {
   const currentRole = roles.find((r) => r.role === selectedRole)
   const currentItems = currentRole?.items || []
 
-  // Single unified set of every sidebar section across all roles,
-  // shown once each (deduplicated by menu_id).
+  // Single unified set of every sidebar section across all roles and portals,
+  // shown once each (deduplicated by menu_id) — one flat merged grid.
   const unifiedTiles = []
   const seen = new Set()
   for (const role of roles) {
@@ -650,132 +652,166 @@ function RolesManager({ orgId, queryClient }) {
   }
 
   const enabledCount = currentItems.filter((i) => i.enabled).length
-  const applicableCount = unifiedTiles.filter((t) => currentItems.some((i) => i.menu_id === t.menu_id)).length
 
   const toggleItem = (menuId) => {
     const next = currentItems.map((it) => it.menu_id === menuId ? { ...it, enabled: !it.enabled } : it)
     saveMutation.mutate({ role: selectedRole, items: next })
   }
 
+  const handleNewRole = () => {
+    const name = window.prompt('New role name, e.g. cashier or front desk')
+    if (!name || !name.trim()) return
+    const normalized = name.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!normalized) return
+    if (roles.some((r) => r.role === normalized)) {
+      setSelectedRole(normalized)
+      return
+    }
+    const items = unifiedTiles.map((t) => ({ menu_id: t.menu_id, enabled: false }))
+    saveMutation.mutate(
+      { role: normalized, items },
+      { onSuccess: () => setSelectedRole(normalized) },
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-5 flex items-center gap-3">
+      <div>
+        <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-t-2xl px-5 py-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
             <i className="bi bi-list-check text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Role-Based Sidebar</h2>
-            <p className="text-indigo-100 text-xs">Select which sections each role can see from one grid</p>
+            <h2 className="text-lg font-semibold text-white">Step 1 — Define role permissions</h2>
+            <p className="text-indigo-100 text-xs">Pick a role, then toggle which sidebar sections it sees from one merged grid</p>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
-        ) : (
-          <div className="p-6">
-            <div className="flex justify-center mb-6">
-              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
-                {roles.map((role) => {
-                  const count = role.items.filter((i) => i.enabled).length
+        <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 border-t-0 overflow-hidden">
+          {isLoading ? (
+            <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
+          ) : (
+            <div className="p-6">
+              <div className="flex justify-center mb-6">
+                <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl flex-wrap justify-center">
+                  {roles.map((role) => {
+                    const count = role.items.filter((i) => i.enabled).length
+                    return (
+                      <button
+                        key={role.role}
+                        onClick={() => setSelectedRole(role.role)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          selectedRole === role.role ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <span className="capitalize">{role.role.replace(/_/g, ' ')}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${selectedRole === role.role ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
+                      </button>
+                    )
+                  })}
+                  <button
+                    onClick={handleNewRole}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 transition-all duration-200"
+                  >
+                    <i className="bi bi-plus-lg text-xs" />
+                    New Role
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-center gap-3">
+                {unifiedTiles.map((tile) => {
+                  const item = currentItems.find((it) => it.menu_id === tile.menu_id)
+                  const enabled = !!item && item.enabled
                   return (
                     <button
-                      key={role.role}
-                      onClick={() => setSelectedRole(role.role)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        selectedRole === role.role ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      key={tile.menu_id}
+                      onClick={() => toggleItem(tile.menu_id)}
+                      title={`Toggle ${tile.label}`}
+                      className={`w-28 rounded-2xl border-2 p-4 flex flex-col items-center gap-2 text-center transition-all duration-200 ${
+                        enabled
+                          ? 'border-indigo-600 bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md'
+                          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
                       }`}
                     >
-                      <span className="capitalize">{role.role}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${selectedRole === role.role ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                        enabled ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'
+                      }`}>
+                        <i className={`bi ${tile.icon} text-lg`} />
+                      </div>
+                      <span className={`text-xs font-medium leading-tight ${enabled ? 'text-white' : 'text-gray-700'}`}>
+                        {tile.label}
+                      </span>
+                      <i className={`bi text-[10px] ${enabled ? 'bi-check-circle-fill text-white/80' : 'bi-circle text-gray-300'}`} />
                     </button>
                   )
                 })}
               </div>
-            </div>
 
-            <div className="flex flex-wrap justify-center gap-3">
-              {unifiedTiles.map((tile) => {
-                const item = currentItems.find((it) => it.menu_id === tile.menu_id)
-                const available = !!item
-                const enabled = available && item.enabled
-                return (
-                  <button
-                    key={tile.menu_id}
-                    onClick={() => available && toggleItem(tile.menu_id)}
-                    title={available ? `Toggle ${tile.label}` : 'Not available for this role'}
-                    disabled={!available}
-                    className={`w-28 rounded-2xl border-2 p-4 flex flex-col items-center gap-2 text-center transition-all duration-200 ${
-                      !available
-                        ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
-                        : enabled
-                          ? 'border-indigo-600 bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md'
-                          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm'
-                    }`}
-                  >
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                      !available
-                        ? 'bg-gray-200 text-gray-400'
-                        : enabled
-                          ? 'bg-white/20 text-white'
-                          : 'bg-indigo-50 text-indigo-600'
-                    }`}>
-                      <i className={`bi ${tile.icon} text-lg`} />
-                    </div>
-                    <span className={`text-xs font-medium leading-tight ${enabled ? 'text-white' : 'text-gray-700'}`}>
-                      {tile.label}
-                    </span>
-                    <i className={`bi text-[10px] ${enabled ? 'bi-check-circle-fill text-white/80' : available ? 'bi-circle text-gray-300' : 'bi-slash-circle text-gray-300'}`} />
-                  </button>
-                )
-              })}
+              <p className="text-xs text-gray-400 text-center mt-6">
+                <span className="capitalize">{selectedRole.replace(/_/g, ' ')}</span> sees {enabledCount} of {unifiedTiles.length} sections — tap a tile to toggle it for this role.
+              </p>
             </div>
-
-            <p className="text-xs text-gray-400 text-center mt-6">
-              <span className="capitalize">{selectedRole}</span> sees {enabledCount} of {applicableCount} sections — tap a tile to toggle it for this role.
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <CoachAccountForm orgId={orgId} />
+      <StaffAccountForm queryClient={queryClient} selectedRole={selectedRole} />
     </div>
   )
 }
 
-function CoachAccountForm({ orgId }) {
-  const queryClientInternal = useQueryClient()
+function StaffAccountForm({ queryClient, selectedRole }) {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ coach_id: '', email: '', password: '' })
+  const [form, setForm] = useState({ role: '', email: '', password: '' })
 
-  const { data: coachesData } = useQuery({
-    queryKey: ['coaches'],
-    queryFn: () => api.get('/gym_coaches/?per_page=100').then((r) => r.data),
+  useEffect(() => {
+    if (selectedRole) setForm((f) => ({ ...f, role: selectedRole }))
+  }, [selectedRole])
+
+  const { data: rolesData } = useQuery({
+    queryKey: ['role-menus'],
+    queryFn: () => api.get('/gym_menus/roles').then((r) => r.data),
   })
-  const coaches = coachesData?.items || []
+  const roles = rolesData?.roles || []
+
+  const { data: usersData } = useQuery({
+    queryKey: ['staff-accounts'],
+    queryFn: () => api.get('/auth/users').then((r) => r.data),
+  })
+  const staffAccounts = (usersData || []).filter((u) => u.role !== 'member')
 
   const createMutation = useMutation({
-    mutationFn: (c) => api.post('/gym_menus/coach-accounts', c),
-    onSuccess: () => {
-      setForm({ coach_id: '', email: '', password: '' })
+    mutationFn: (c) => api.post('/gym_menus/accounts', c),
+    onSuccess: (data) => {
+      setForm({ role: data.role || '', email: '', password: '' })
       setShowForm(false)
-      queryClientInternal.invalidateQueries({ queryKey: ['role-menus'] })
+      queryClient.invalidateQueries({ queryKey: ['staff-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['role-menus'] })
     },
   })
 
+  const roleEnabledCount = roles.find((r) => r.role === form.role)?.items.filter((i) => i.enabled).length ?? 0
+  const totalSections = roles[0]?.items.length || 0
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <i className="bi bi-person-plus text-violet-600" />
-          <h2 className="font-semibold text-gray-800">Coach Portal Accounts</h2>
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+            <i className="bi bi-person-plus text-indigo-600 text-sm" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-800">Step 2 — Create an account for a role</h2>
+            <p className="text-xs text-gray-400">The account signs in and only sees its role's sidebar sections</p>
+          </div>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-700 transition-colors"
+          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
         >
           <i className={`bi ${showForm ? 'bi-x-lg' : 'bi-plus-lg'} text-xs`} />
-          {showForm ? 'Close' : 'Give a Coach a Login'}
+          {showForm ? 'Close' : 'Create Staff Account'}
         </button>
       </div>
 
@@ -785,31 +821,70 @@ function CoachAccountForm({ orgId }) {
           className="p-5 space-y-4"
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-3">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Coach</label>
-              <select value={form.coach_id} onChange={(e) => setForm({ ...form, coach_id: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required>
-                <option value="">Select a coach...</option>
-                {coaches.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Role</label>
+              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required>
+                <option value="">Select a role...</option>
+                {roles.filter((r) => r.role !== 'member').map((r) => (
+                  <option key={r.role} value={r.role}>{r.role.replace(/_/g, ' ')} — {r.items.filter((i) => i.enabled).length} sections</option>
+                ))}
               </select>
+              {form.role && roleEnabledCount === 0 && (
+                <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
+                  <i className="bi bi-exclamation-triangle" /> This role has no sections enabled yet
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
-              <input type="email" placeholder="coach@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required />
+              <input type="email" placeholder="staff@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
-              <input type="text" placeholder="Set a password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" required />
-            </div>
-            <div className="flex items-end">
-              <button type="submit" disabled={createMutation.isPending} className="w-full bg-violet-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
-                {createMutation.isPending ? 'Creating...' : 'Create Login'}
-              </button>
+              <input type="text" placeholder="Set a password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" required />
             </div>
           </div>
-          {createMutation.isError && <p className="text-sm text-red-500">{createMutation.error?.response?.data?.detail || 'Error'}</p>}
-          {createMutation.isSuccess && <p className="text-sm text-violet-600">Coach login created! They can now sign in to the Coach Portal.</p>}
+          {roleEnabledCount > 0 && (
+            <p className="text-xs text-gray-400 flex items-center gap-1.5">
+              <i className="bi bi-info-circle" />
+              This account will see {roleEnabledCount} of {totalSections} possible sections.
+            </p>
+          )}
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={createMutation.isPending} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              {createMutation.isPending ? 'Creating...' : 'Create Account'}
+            </button>
+            {createMutation.isError && <p className="text-sm text-red-500">{createMutation.error?.response?.data?.detail || 'Error'}</p>}
+          </div>
+          {createMutation.isSuccess && <p className="text-sm text-indigo-600">Staff account created! They can now sign in with this email.</p>}
         </form>
       )}
+
+      <div className="border-t border-gray-100 px-5 py-4">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Staff Accounts ({staffAccounts.length})</h3>
+        {staffAccounts.length === 0 ? (
+          <p className="text-sm text-gray-400">No staff accounts yet. Create one above.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {staffAccounts.map((u) => (
+              <li key={u.id} className="py-2.5 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                    <i className="bi bi-person text-sm" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{u.email}</p>
+                    <p className="text-[10px] text-gray-400">Signs in to the staff portal</p>
+                  </div>
+                </div>
+                <span className="px-2 py-1 rounded-full text-xs font-medium capitalize bg-indigo-50 text-indigo-700 shrink-0">
+                  {u.role.replace(/_/g, ' ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
